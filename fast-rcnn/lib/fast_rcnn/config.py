@@ -136,7 +136,8 @@ def get_output_dir(imdb, net):
     A canonical path is built using the name from an imdb and a network
     (if not None).
     """
-    path = osp.abspath(osp.join(__C.ROOT_DIR, 'output', __C.EXP_DIR, imdb.name))
+    #path = osp.abspath(osp.join(__C.ROOT_DIR, 'output', __C.EXP_DIR, imdb.name))
+    path = osp.abspath(osp.join(__C.ROOT_DIR, 'output', imdb.name))
     if net is None:
         return path
     else:

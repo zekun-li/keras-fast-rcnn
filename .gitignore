@@ -1,0 +1,4 @@
+*.pyc
+*.py~
+#*.py#
+fast-rcnn/data

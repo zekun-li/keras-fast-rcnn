@@ -35,7 +35,8 @@ class pascal_voc(datasets.imdb):
         self._image_ext = '.jpg'
         self._image_index = self._load_image_set_index()
         # Default to roidb handler
-        self._roidb_handler = self.selective_search_roidb
+        #self._roidb_handler = self.selective_search_roidb
+        self._roidb_handler = self.yolo_roidb # use YOLO proposals
 
         # PASCAL specific config options
         self.config = {'cleanup'  : True,
@@ -67,10 +68,13 @@ class pascal_voc(datasets.imdb):
         """
         Load the indexes listed in this dataset's image set file.
         """
+        """
         # Example path to image set file:
         # self._devkit_path + /VOCdevkit2007/VOC2007/ImageSets/Main/val.txt
-        image_set_file = os.path.join(self._data_path, 'ImageSets', 'Main',
-                                      self._image_set + '.txt')
+        #image_set_file = os.path.join(self._data_path, 'ImageSets', 'Main',
+        #                              self._image_set + '.txt')
+        """
+        image_set_file = os.path.join(self._devkit_path,'sample_name_2012train.txt')
         assert os.path.exists(image_set_file), \
                 'Path does not exist: {}'.format(image_set_file)
         with open(image_set_file) as f:
@@ -145,6 +149,52 @@ class pascal_voc(datasets.imdb):
             box_list.append(raw_data[i][:, (1, 0, 3, 2)] - 1)
 
         return self.create_roidb_from_box_list(box_list, gt_roidb)
+
+    def yolo_roidb(self):
+        """
+        Return the database of yolo regions of interest.
+        Ground-truth ROIs are also included.
+
+        This function loads/saves from/to a cache file to speed up future calls.
+        """
+        '''
+        cache_file = os.path.join(self.cache_path,
+                                  self.name + '_yolo_roidb.pkl')
+
+        if os.path.exists(cache_file):
+            with open(cache_file, 'rb') as fid:
+                roidb = cPickle.load(fid)
+            print '{} yolo roidb loaded from {}'.format(self.name, cache_file)
+            return roidb
+        '''
+        if int(self._year) == 2007 or self._image_set != 'test':
+            gt_roidb = self.gt_roidb()
+            yolo_roidb = self._load_yolo_roidb(gt_roidb)
+            roidb = datasets.imdb.merge_roidbs(gt_roidb, yolo_roidb)
+        else:
+            roidb = self._load_yolo__roidb(None)
+
+        '''
+        with open(cache_file, 'wb') as fid:
+            cPickle.dump(roidb, fid, cPickle.HIGHEST_PROTOCOL)
+        print 'wrote yolo roidb to {}'.format(cache_file)
+        '''
+        return roidb
+
+    def _load_yolo_roidb(self, gt_roidb):
+        filename = os.path.abspath(os.path.join(datasets.ROOT_DIR,
+                                                'data/yolo_data',
+                                                self.name + '.mat'))
+        assert os.path.exists(filename), \
+               'yolo data not found at: {}'.format(filename)
+        raw_data = sio.loadmat(filename)['boxes'].ravel()
+
+        box_list = []
+        for i in xrange(raw_data.shape[0]):
+            box_list.append(raw_data[i][:, (0, 1, 2, 3)] - 1)
+        
+        return self.create_roidb_from_box_list(box_list, gt_roidb)
+
 
     def selective_search_IJCV_roidb(self):
         """
@@ -235,8 +285,9 @@ class pascal_voc(datasets.imdb):
             comp_id += '-{}'.format(os.getpid())
 
         # VOCdevkit/results/VOC2007/Main/comp4-44503_det_test_aeroplane.txt
-        path = os.path.join(self._devkit_path, 'results', 'VOC' + self._year,
-                            'Main', comp_id + '_')
+        #path = os.path.join(self._devkit_path, 'results', 'VOC' + self._year,
+        #                    'Main', comp_id + '_')
+        path = os.path.join(self._devkit_path,'results',comp_id+'_') # sample result path
         for cls_ind, cls in enumerate(self.classes):
             if cls == '__background__':
                 continue

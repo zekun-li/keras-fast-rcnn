@@ -19,9 +19,7 @@ import pprint
 import numpy as np
 import sys
 # ------------
-import theano
-theano.config.device = "gpu"
-theano.config.floatX = "float32"
+import roi_data_layer.roidb as rdl_roidb
 
 
 def get_training_roidb(imdb):
@@ -100,7 +98,7 @@ if __name__ == '__main__':
     #if args.gpu_id is not None:
     #    caffe.set_device(args.gpu_id)
 
-    # Actually, gpu_id not is necessary after setting up CUDA_VISIBLE_DEVICES
+    #  gpu_id not is necessary after setting up CUDA_VISIBLE_DEVICES ??
 
     imdb = get_imdb(args.imdb_name)
     print 'Loaded dataset `{:s}` for training'.format(imdb.name)
