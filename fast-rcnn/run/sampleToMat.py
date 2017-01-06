@@ -9,7 +9,7 @@ from scipy.io import savemat
 def parse_arguments():
     ap = argparse.ArgumentParser()
     ap.add_argument("-d", "--dataset", required=True, help="dataset name. eg. voc_2012_test or voc_2012_trainval")
-    ap.add_argument("-i","--imageList",required=True,help="name list of the images")
+    ap.add_argument("-i","--imageList",required=True,help="name list of the images. eg. ../data/VOCdevkit2012/sample_name_2012train.txt")
     args = vars(ap.parse_args())
     return args
 
@@ -52,10 +52,12 @@ def main():
     boxes = zip(*sorted_list)[1]
     
     # --save file --
-    savemat('/nfs/isicvlnas01/users/zekunl/projects/keras-fast-rcnn/fast-rcnn/data/yolo_data/'+datasetName+'.mat',mdict={'boxes':boxes},oned_as='row')
-    print 'rois saved as Mat'
+    #savemat('/nfs/isicvlnas01/users/zekunl/projects/keras-fast-rcnn/fast-rcnn/data/yolo_data/'+datasetName+'.mat',mdict={'boxes':boxes},oned_as='row')
+    #print 'rois saved as Mat'
     # print statistics
     cnt_boxes = [len(img_box) for img_box in boxes]
+    
+    print cnt_boxes
     print 'average number of boxes per image:'
     print sum(cnt_boxes)/float(len(cnt_boxes))
     print 'min number of boxes for one image:'

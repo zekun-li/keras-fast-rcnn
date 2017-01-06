@@ -1,7 +1,19 @@
 from keras.preprocessing import image
-#from imagenet_utils import preprocess_input
 import numpy as np
 import os
+
+
+# substract mean from each channel
+# switch channel order
+def preprocess(x):
+    # assume dim_ordering is th, can use keras.backend.image_dim_ordering() to check
+    x[0, :, :] -= 103.939
+    x[1, :, :] -= 116.779
+    x[2, :, :] -= 123.68
+    # 'RGB'->'BGR'
+    x = x[::-1, :, :]
+    return x
+
 
 def add_normalized_bbox(roidb):
     '''normalize roi bbox coordinates to the range [0,1]'''
@@ -23,10 +35,10 @@ def add_image_data(roidb):
     for num_i in xrange(num_images):
         img_path = roidb[num_i]['image'] # read image path
         assert os.path.exists(img_path),'image path does not exist: {}'.format(img_path)
-        img = image.load_img(img_path)
+        img = image.load_img(img_path, target_size=(224, 224))
         img = image.img_to_array(img) # dim: nb_channels,height,width. eg(3,442,500) for 2008_000008.jpg
-        #img = np.expand_dims(img, axis=0) # dim:
         # substracting mean rgb pixel intensity computed from image net dataset
-        #img = preprocess_input(img)
+        # also switch channels
+        img = preprocess(img)
         roidb[num_i]['image_data'] = img
     return 0

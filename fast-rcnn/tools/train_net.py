@@ -9,6 +9,14 @@
 
 """Train a Fast R-CNN network on a region of interest database."""
 
+
+'''# ----------mannual gpu allocation if SGE failed -------------
+import os
+gpu_id = '1'
+os.environ["THANO_FLGS"] = "device = gpu%s,floatX = float32" % gpu_id
+'''
+# -------------------------------------------
+
 import _init_paths
 #from fast_rcnn.train import get_training_roidb, train_net
 from fast_rcnn.config import cfg, cfg_from_file, cfg_from_list, get_output_dir
@@ -20,7 +28,8 @@ import numpy as np
 import sys
 # ------------
 import roi_data_layer.roidb as rdl_roidb
-from keras_model import prepare_data 
+from keras_model import prepare_data
+from keras_model import fastrcnn 
 
 
 def get_training_roidb(imdb):
@@ -114,12 +123,27 @@ if __name__ == '__main__':
     print 'done'
     
     print 'loading images ...'
+    # images are resized to 224x224
     prepare_data.add_image_data(roidb)
     
     print 'Computing normalized roi boxes coordinates ...'
     prepare_data.add_normalized_bbox(roidb)
     print 'done'
+    
 
+    from keras.utils.np_utils import to_categorical
+
+    i = 0
+    X = np.expand_dims(roidb[i]['image_data'],axis = 0)
+    R = np.expand_dims(roidb[i]['box_normalized'],axis = 0)
+    P = roidb[i]['bbox_targets'][:,0].astype(np.int32) # get label
+    P = np.expand_dims(to_categorical(P,21).astype(np.float32),axis = 0)
+    B = np.expand_dims(roidb[i]['bbox_targets'][:,1:],axis=0) # get bbox_coordinates
     #train_net(args.solver, roidb, output_dir,
     #          pretrained_model=args.pretrained_model,
     #          max_iters=args.max_iters)
+    
+    R = R[:,0:4,:]
+    P = P[:,0:4,:]
+    B = B[:,0:4,:]
+    fastrcnn.fast.fit({'batch_of_images': X, 'batch_of_rois': R},{'proba_output':P, 'bbox_output':B}, batch_size = 1, nb_epoch=1,verbose=1)
