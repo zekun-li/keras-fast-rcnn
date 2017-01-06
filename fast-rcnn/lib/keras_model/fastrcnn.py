@@ -160,7 +160,7 @@ def bbox_regressor( nb_classes = nb_classes ) :
     bbox.add(Dropout(0.5))
     bbox.add(Dense( 256, activation='relu') )
     bbox.add(Dropout(0.5))
-    bbox.add(Dense( nb_classes * 4, activation='relu') )
+    bbox.add(Dense( nb_classes * 4, activation='linear') )
     return bbox    
 
 
