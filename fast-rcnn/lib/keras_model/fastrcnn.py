@@ -5,8 +5,11 @@ Created on Tue Dec  6 15:45:35 2016
 @author: yue_wu
 """
 import os
-gpu_id = '1'
+#gpu_id = '1'
+gpu_id = os.environ["SGE_GPU"]
+print gpu_id
 os.environ["THEANO_FLAGS"] = "device=gpu%s,floatX=float32" % gpu_id
+print os.environ["THEANO_FLAGS"]
 import sys
 sys.path.insert(0, '/nfs/isicvlnas01/users/yue_wu/thirdparty/keras_1.1.2/keras/' )
 import keras

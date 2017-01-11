@@ -133,7 +133,7 @@ if __name__ == '__main__':
 
     from keras.utils.np_utils import to_categorical
 
-    i = 0
+    i = 8
     X = np.expand_dims(roidb[i]['image_data'],axis = 0)
     R = np.expand_dims(roidb[i]['box_normalized'],axis = 0)
     P = roidb[i]['bbox_targets'][:,0].astype(np.int32) # get label
