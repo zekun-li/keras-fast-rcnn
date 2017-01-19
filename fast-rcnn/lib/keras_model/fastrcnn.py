@@ -4,6 +4,7 @@ Created on Tue Dec  6 15:45:35 2016
 
 @author: yue_wu
 """
+
 import os
 #gpu_id = '1'
 gpu_id = os.environ["SGE_GPU"]
@@ -11,9 +12,10 @@ print gpu_id
 os.environ["THEANO_FLAGS"] = "device=gpu%s,floatX=float32" % gpu_id
 print os.environ["THEANO_FLAGS"]
 import sys
-sys.path.insert(0, '/nfs/isicvlnas01/users/yue_wu/thirdparty/keras_1.1.2/keras/' )
+# sys.path.insert(0, '/nfs/isicvlnas01/users/yue_wu/thirdparty/keras_1.1.2/keras/' )
 import keras
 print keras.__version__
+
 from keras.layers import Input, Dense, Merge, Lambda, merge
 from keras.models import Model, Sequential
 from keras import backend as K
@@ -159,12 +161,25 @@ def bbox_regressor( nb_classes = nb_classes ) :
     '''this model expects an input of shape {nb_roi}x{512*7*7} and predicts a bbox of shape {nb_roi}x4
     '''
     bbox = Sequential()
-    bbox.add(Dense( 1024, input_shape = (512 * target_h * target_w, ), activation = 'relu' ) )
+    bbox.add(Dense(1024, input_shape = (512 * target_h * target_w, ), activation = 'relu'))
     bbox.add(Dropout(0.5))
-    bbox.add(Dense( 256, activation='relu') )
+    bbox.add(Dense(256, activation = 'relu'))
     bbox.add(Dropout(0.5))
-    bbox.add(Dense( nb_classes * 4, activation='linear') )
-    return bbox    
+    bbox.add(Dense(4, activation = 'linear'))
+    return bbox
+    '''
+    bbox = Sequential()
+    # bbox.add(Dense( 1024, input_shape = (512 * target_h * target_w, ), activation = 'relu' ) )
+    Reshape(512,target_h, target_w)
+    bbox.add(Convolution2D(1024,target_h, target_w,border_mode = 'valid',activation = 'relu') )
+    bbox.add(Dropout(0.5))
+    #bbox.add(Dense( 256, activation='relu') )
+    bbox.add(Convolution2D(256, target_h, target_w, border_mode = 'valid',activation = 'relu'))
+    bbox.add(Dropout(0.5))
+    #bbox.add(Dense( nb_classes * 4, activation='linear') )
+    bbox.add(Convolution2D( 64, target_h, target_w, border_mode = 'valid', activation = 'linear'))
+    return bbox 
+    '''
 
 
 def our_categorical_crossentropy(softmax_proba_2d,true_dist_2d, eps = 1e-5):
@@ -244,10 +259,13 @@ NOTE:
 3) make sure provided target values in training compatible with model outputs
 """
 from keras.layers.wrappers import TimeDistributed
-nb_rois = 4
+# nb_rois = 4
 # define two inputs
-input_x = Input( shape = ( 3, 224, 224 ), name = 'batch_of_images' )
-input_r = Input( shape = ( nb_rois, 4 ), name = 'batch_of_rois' )
+# input_x = Input( shape = ( 3, 224, 224 ), name = 'batch_of_images' )
+# input_r = Input( shape = ( nb_rois, 4 ), name = 'batch_of_rois' )
+
+input_x = Input( shape = ( 3, None, None ), name = 'batch_of_images' )
+input_r = Input( shape = ( None, 4 ), name = 'batch_of_rois' )  
 # define four major modules
 featex, classifier = create_vgg_featex_classifier()
 vgg_conv_output = featex( input_x )
@@ -270,6 +288,7 @@ fast.compile( optimizer = 'sgd', loss_weights = [ 1., 1. ],
               loss = { 'proba_output' : our_proba_loss, 'bbox_output' : our_bbox_loss } )
 
 if __name__  == "__main__":
+    '''
     # test code
     x = np.random.randn( 2, 3, 224, 224 ).astype( np.float32 )
     roi = np.array( [ [0,0,1,1], [0,0,.75,.75], [0,0,.5,.5], [0,0,.25,.25]] ).astype( np.float32 ).reshape( [1,-1,4] )
@@ -277,15 +296,37 @@ if __name__  == "__main__":
     y = fast.predict( {'batch_of_images' : x, 'batch_of_rois' : roi3d } )
     print 'proba_output.shape =', y[0].shape
     print 'bbox_output.shape =', y[1].shape
+    '''
 
+    '''
     # if case we can all training data in memory, then you can train the model as follows
     from keras.utils.np_utils import to_categorical
 
-    nb_samples = 10
-    X = np.random.randn( nb_samples, 3, 224, 224 ).astype( np.float32 )
+    nb_samples = 1
+    nb_rois = 40
+    X = np.random.randint(0, 225, ( nb_samples, 3, 224, 224 )).astype( np.float32 )
     R = np.concatenate( [ np.zeros( (nb_samples, nb_rois, 2 ) ), np.ones(( nb_samples, nb_rois, 2 ) ) ], axis = -1 ).astype( np.float32 )
-    P = to_categorical( np.random.choice( range( nb_classes ), ( nb_samples, nb_rois ) ).ravel(), nb_classes ).reshape( ( nb_samples, nb_rois, -1 ) )
-    B = np.random.rand( nb_samples, nb_rois, nb_classes * 4 )
+    P = to_categorical( np.random.choice( range( nb_classes ), ( nb_samples, nb_rois ) ).ravel(), nb_classes +1 ).reshape( ( nb_samples, nb_rois, -1 ) )
+    #B = np.random.rand( nb_samples, nb_rois, nb_classes * 4 )
+    B = np.random.randn(nb_samples,nb_rois,4)
     fast.fit( { 'batch_of_images' : X, 'batch_of_rois' : R }, {'proba_output' : P, 'bbox_output' : B }, batch_size = 1, nb_epoch = 1, verbose = 1 )
 
-	
+    '''
+    import pickle
+    from keras.utils.np_utils import to_categorical
+        
+    with open("../../run/roidb.pickle","r") as f:
+        roidb = pickle.load(f)
+    
+    i = 2
+    X = np.expand_dims(roidb[i]['image_data'],axis = 0)
+    R = np.expand_dims(roidb[i]['box_normalized'],axis = 0)
+    P = roidb[i]['bbox_targets'][:,0].astype(np.int32) # get label
+    P = np.expand_dims(to_categorical(P,21).astype(np.float32),axis = 0)
+    B = np.expand_dims(roidb[i]['bbox_targets'][:,1:],axis=0) # get bbox_coordinates
+    
+    R = R[:,0:4,:]
+    P = P[:,0:4,:]
+    B = B[:,0:4,:]
+    fast.predict({'batch_of_images': X, 'batch_of_rois': R})
+    fast.fit({'batch_of_images': X, 'batch_of_rois': R},{'proba_output':P, 'bbox_output':B}, batch_size = 1, nb_epoch=1,verbose=1)

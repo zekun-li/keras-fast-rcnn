@@ -18,18 +18,16 @@ os.environ["THANO_FLGS"] = "device = gpu%s,floatX = float32" % gpu_id
 # -------------------------------------------
 
 import _init_paths
-#from fast_rcnn.train import get_training_roidb, train_net
 from fast_rcnn.config import cfg, cfg_from_file, cfg_from_list, get_output_dir
 from datasets.factory import get_imdb
-#import caffe
 import argparse
 import pprint
 import numpy as np
 import sys
 # ------------
 import roi_data_layer.roidb as rdl_roidb
-from keras_model import prepare_data
 from keras_model import fastrcnn 
+from keras_model import prepare_data
 
 
 def get_training_roidb(imdb):
@@ -133,17 +131,14 @@ if __name__ == '__main__':
 
     from keras.utils.np_utils import to_categorical
 
-    i = 8
+    i = 0
     X = np.expand_dims(roidb[i]['image_data'],axis = 0)
     R = np.expand_dims(roidb[i]['box_normalized'],axis = 0)
     P = roidb[i]['bbox_targets'][:,0].astype(np.int32) # get label
     P = np.expand_dims(to_categorical(P,21).astype(np.float32),axis = 0)
     B = np.expand_dims(roidb[i]['bbox_targets'][:,1:],axis=0) # get bbox_coordinates
-    #train_net(args.solver, roidb, output_dir,
-    #          pretrained_model=args.pretrained_model,
-    #          max_iters=args.max_iters)
     
-    R = R[:,0:4,:]
-    P = P[:,0:4,:]
-    B = B[:,0:4,:]
+    #R = R[:,0:4,:]
+    #P = P[:,0:4,:]
+    #B = B[:,0:4,:]
     fastrcnn.fast.fit({'batch_of_images': X, 'batch_of_rois': R},{'proba_output':P, 'bbox_output':B}, batch_size = 1, nb_epoch=1,verbose=1)

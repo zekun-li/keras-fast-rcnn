@@ -16,6 +16,7 @@ import scipy.io as sio
 import utils.cython_bbox
 import cPickle
 import subprocess
+from fast_rcnn.config import cfg
 
 class pascal_voc(datasets.imdb):
     def __init__(self, image_set, year, devkit_path=None):
@@ -191,8 +192,8 @@ class pascal_voc(datasets.imdb):
 
         box_list = []
         for i in xrange(raw_data.shape[0]):
-            box_list.append(raw_data[i][:, (0, 1, 2, 3)] - 1)
-        
+            box_list.append((raw_data[i][:, (0, 1, 2, 3)] - 1 +cfg.EPS).astype(np.uint16))
+
         return self.create_roidb_from_box_list(box_list, gt_roidb)
 
 
