@@ -52,10 +52,21 @@ def _per_roi_pooling( coord, x ):
     #icoords[1] = tt.iround( coord[1] * nb_rows)
     #icoords[2] = tt.iround( coord[2] * nb_cols)
     #icoords[3] = tt.iround( coord[3] * nb_rows)
-    xmin = icoords[0]
-    ymin = icoords[1]
-    xmax = tt.clip( icoords[2], 1, nb_cols ) # min(xmax) = 1, max(xmax) = nb_cols
-    ymax = tt.clip( icoords[3], 1, nb_rows ) # min (ymax) = 1, max(ymax) = nb_rows
+    #xmin = icoords[0]
+    #ymin = icoords[1]
+    # 0 <= xmin <= nb_cols
+    xmin = tt.clip(icoords[0],0,nb_cols)
+    # 0 <= ymin <= nb_rows
+    ymin = tt.clip(icoords[1],0,nb_rows)
+
+    xmax = tt.clip( icoords[2], 1+xmin, nb_cols ) # min(xmax) = 1+xmin, max(xmax) = nb_cols
+    ymax = tt.clip( icoords[3], 1+ymin, nb_rows ) # min (ymax) = 1+ymin, max(ymax) = nb_rows
+    
+    # if xmin == xmax == nb_cols
+    xmin = ifelse(tt.eq(xmax,xmin), xmax -1, xmin )
+    # if ymin == ymax == nb_rows
+    ymin = ifelse(tt.eq(ymax,ymin), ymax -1, ymin )
+
     # step 2: extract raw sub-stensor
     roi = x[:, ymin:ymax, xmin:xmax ] 
     # step 3: resize raw to 4x4
@@ -200,18 +211,24 @@ def smooth_l1(x):
     abs_x = tt.abs_(x)
     return ifelse(tt.lt(abs_x,1),0.5*abs_x*abs_x, abs_x-0.5)
 
-# predicted_ox: 1D [xcenter,ycenter,width,height]
-# target_box: 1D [xcenter,ycenter,width,height]
+# predicted_box: 1D [xcenter,ycenter,width,height]
+# target_box: 1D [label, xcenter,ycenter,width,height]
 def one_bbox_loss(target_box,predicted_box):
-    x_offset = predicted_box[0] - target_box[0]
-    y_offset = predicted_box[1] - target_box[1]
-    w_offset = predicted_box[2] - target_box[2]
-    h_offset = predicted_box[3] - target_box[3]
+    x_offset = predicted_box[0] - target_box[1]
+    y_offset = predicted_box[1] - target_box[2]
+    w_offset = predicted_box[2] - target_box[3]
+    h_offset = predicted_box[3] - target_box[4]
 
     return smooth_l1(x_offset) + smooth_l1(y_offset) + smooth_l1(w_offset) + smooth_l1(h_offset)
 
+# predicted_box: 1D [xcenter,ycenter,width,height]
+# target_box: 1D [label, xcenter,ycenter,width,height]
+# if target label is 0 (background), then set the loss to be zero, instead of calculating smooth_l1
+def one_bbox_loss_filter(target_box, predicted_box):
+    return ifelse(tt.eq(target_box[0],0), 0.0, one_bbox_loss(target_box,predicted_box))
+
 def nb_rois_bbox_loss(target_box_2d, predicted_box_2d):
-    loss_2d , _ = scan(fn = one_bbox_loss,sequences = [target_box_2d,predicted_box_2d])
+    loss_2d , _ = scan(fn = one_bbox_loss_filter,sequences = [target_box_2d,predicted_box_2d])
     return loss_2d
 
 def our_bbox_loss ( target_box_3d, predicted_box_3d):
@@ -314,19 +331,22 @@ if __name__  == "__main__":
     '''
     import pickle
     from keras.utils.np_utils import to_categorical
-        
+    
     with open("../../run/roidb.pickle","r") as f:
         roidb = pickle.load(f)
     
-    i = 2
+    i = 3
     X = np.expand_dims(roidb[i]['image_data'],axis = 0)
     R = np.expand_dims(roidb[i]['box_normalized'],axis = 0)
     P = roidb[i]['bbox_targets'][:,0].astype(np.int32) # get label
     P = np.expand_dims(to_categorical(P,21).astype(np.float32),axis = 0)
-    B = np.expand_dims(roidb[i]['bbox_targets'][:,1:],axis=0) # get bbox_coordinates
+    #B = np.expand_dims(roidb[i]['bbox_targets'][:,1:],axis=0) # get bbox_coordinates
+    B = np.expand_dims(roidb[i]['bbox_targets'],axis=0) # get label + bbox_coordinates
     
-    R = R[:,0:4,:]
-    P = P[:,0:4,:]
-    B = B[:,0:4,:]
-    fast.predict({'batch_of_images': X, 'batch_of_rois': R})
+    print R
+    print P
+    print B
+    
+    print fast.predict({'batch_of_images': X, 'batch_of_rois': R})
+    print fast.evaluate({'batch_of_images':X, 'batch_of_rois':R},{'proba_output':P, 'bbox_output':B},batch_size = 1,verbose=1)
     fast.fit({'batch_of_images': X, 'batch_of_rois': R},{'proba_output':P, 'bbox_output':B}, batch_size = 1, nb_epoch=1,verbose=1)
