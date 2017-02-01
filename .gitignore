@@ -3,3 +3,4 @@
 #*.py#
 fast-rcnn/data
 backup_code
+*.pickle

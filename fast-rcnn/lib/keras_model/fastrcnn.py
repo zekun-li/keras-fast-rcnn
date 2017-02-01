@@ -6,13 +6,13 @@ Created on Tue Dec  6 15:45:35 2016
 """
 
 import os
-#gpu_id = '1'
-gpu_id = os.environ["SGE_GPU"]
+gpu_id = '1'
+#gpu_id = os.environ["SGE_GPU"]
 print gpu_id
 os.environ["THEANO_FLAGS"] = "device=gpu%s,floatX=float32" % gpu_id
 print os.environ["THEANO_FLAGS"]
 import sys
-# sys.path.insert(0, '/nfs/isicvlnas01/users/yue_wu/thirdparty/keras_1.1.2/keras/' )
+#sys.path.insert(0, '/nfs/isicvlnas01/users/yue_wu/thirdparty/keras_1.1.2/keras/' )
 import keras
 print keras.__version__
 
@@ -34,6 +34,7 @@ from keras.layers.core import Dense, Dropout, Activation, Permute, Reshape
 from keras.layers import Convolution2D, MaxPooling2D, Dense, Dropout, Activation, Flatten, ZeroPadding2D, UpSampling2D
 from keras.optimizers import SGD
 from theano.ifelse import ifelse
+from keras.utils.np_utils import to_categorical
 
 
 target_h = 7
@@ -176,7 +177,7 @@ def bbox_regressor( nb_classes = nb_classes ) :
     bbox.add(Dropout(0.5))
     bbox.add(Dense(256, activation = 'relu'))
     bbox.add(Dropout(0.5))
-    bbox.add(Dense(4, activation = 'linear'))
+    bbox.add(Dense(4, activation = 'tanh'))
     return bbox
     '''
     bbox = Sequential()
@@ -304,7 +305,50 @@ fast.summary()
 fast.compile( optimizer = 'sgd', loss_weights = [ 1., 1. ], 
               loss = { 'proba_output' : our_proba_loss, 'bbox_output' : our_bbox_loss } )
 
+
+
+def datagen( data_list, mode = 'training', nb_epoch = -1 ) :
+    epoch = 0
+    nb_samples = len( data_list )
+    indices = range( nb_samples )
+    while ( epoch < nb_epoch ) or ( nb_epoch < 0 ) :
+        if ( mode == 'training' ) :
+            np.random.shuffle( indices )
+        for idx in indices :
+            X =  np.expand_dims( data_list[idx]['image_data'], axis = 0)
+            R = np.expand_dims(data_list[idx]['box_normalized'],axis = 0)
+            P = data_list[idx]['bbox_targets'][:,0].astype(np.int32) # get label
+            P = np.expand_dims(to_categorical(P,21).astype(np.float32),axis = 0)
+            B = np.expand_dims(data_list[idx]['bbox_targets'],axis=0) # get label+ bbox_coordinates
+   
+            yield ( { 'batch_of_images' : X ,
+                      'batch_of_rois'   : R },
+                    { 'proba_output'  : P ,
+                      'bbox_output' : B} )
+        epoch += 1
+
+
 if __name__  == "__main__":
+    
+    import pickle     
+    with open("../../run/roidb.pickle","r") as f:       
+        roidb = pickle.load(f)    
+
+    trn_data_list = roidb[0:8]  
+    trn = datagen( trn_data_list, nb_epoch = len(trn_data_list) )   
+    '''
+    for X_lut, Y_lut in trn :
+        print X_lut, Y_lut                                                                            
+    '''
+    
+    val_data_list = roidb[8:]                                      
+    val = datagen( val_data_list, nb_epoch = len(val_data_list), mode = 'validation' )  
+    
+    #fast.fit_generator(trn,samples_per_epoch = 1 ,nb_epoch = 10) 
+    fast.fit_generator(trn,samples_per_epoch = 1 ,nb_epoch = 10, validation_data = val, nb_val_samples = len(val_data_list)) 
+    
+
+
     '''
     # test code
     x = np.random.randn( 2, 3, 224, 224 ).astype( np.float32 )
@@ -329,12 +373,8 @@ if __name__  == "__main__":
     fast.fit( { 'batch_of_images' : X, 'batch_of_rois' : R }, {'proba_output' : P, 'bbox_output' : B }, batch_size = 1, nb_epoch = 1, verbose = 1 )
 
     '''
-    import pickle
-    from keras.utils.np_utils import to_categorical
-    
-    with open("../../run/roidb.pickle","r") as f:
-        roidb = pickle.load(f)
-    
+   
+    '''
     i = 3
     X = np.expand_dims(roidb[i]['image_data'],axis = 0)
     R = np.expand_dims(roidb[i]['box_normalized'],axis = 0)
@@ -350,3 +390,4 @@ if __name__  == "__main__":
     print fast.predict({'batch_of_images': X, 'batch_of_rois': R})
     print fast.evaluate({'batch_of_images':X, 'batch_of_rois':R},{'proba_output':P, 'bbox_output':B},batch_size = 1,verbose=1)
     fast.fit({'batch_of_images': X, 'batch_of_rois': R},{'proba_output':P, 'bbox_output':B}, batch_size = 1, nb_epoch=1,verbose=1)
+    '''

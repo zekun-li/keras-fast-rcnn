@@ -75,7 +75,7 @@ class pascal_voc(datasets.imdb):
         #image_set_file = os.path.join(self._data_path, 'ImageSets', 'Main',
         #                              self._image_set + '.txt')
         """
-        image_set_file = os.path.join(self._devkit_path,'sample_name_2012train.txt')
+        image_set_file = os.path.join(self._devkit_path,'full_2012train.txt')
         assert os.path.exists(image_set_file), \
                 'Path does not exist: {}'.format(image_set_file)
         with open(image_set_file) as f:
