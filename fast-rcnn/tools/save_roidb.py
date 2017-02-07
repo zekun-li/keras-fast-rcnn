@@ -125,19 +125,23 @@ if __name__ == '__main__':
     from keras.utils.np_utils import to_categorical
     import pickle 
     print len(roidb)
+
     '''
-    i = 0
-    X = np.expand_dims(roidb[i]['image_data'],axis = 0)
-    R = np.expand_dims(roidb[i]['box_normalized'],axis = 0)
-    P = roidb[i]['bbox_targets'][:,0].astype(np.int32) # get label
-    P = np.expand_dims(to_categorical(P,21).astype(np.float32),axis = 0)
-    B = np.expand_dims(roidb[i]['bbox_targets'][:,1:],axis=0) # get bbox_coordinates
-    '''
-    with open("../run/roidb.pickle",'w') as f:
+    # save roidb
+    with open("../run/full_roidb.pickle",'w') as f:
         pickle.dump(roidb,f)
     '''
-    R = R[:,-1:4,:]
-    P = P[:,0:4,:]
-    B = B[:,0:4,:]
+
+    i = 0
+    j = 1000
+    X = np.expand_dims(roidb[arrange(i,j)]['image_data'],axis = 0)
+    R = np.expand_dims(roidb[arrange(i,j)]['box_normalized'],axis = 0)
+    P = roidb[arrange(i,j)]['bbox_targets'][:,0].astype(np.int32) # get label
+    P = np.expand_dims(to_categorical(P,21).astype(np.float32),axis = 0)
+    B = np.expand_dims(roidb[arrange(i,j)]['bbox_targets'],axis=0) # get bbox_coordinates
+
+    #R = R[:,-1:4,:]
+    #P = P[:,0:4,:]
+    #B = B[:,0:4,:]
     fastrcnn.fast.fit({'batch_of_images': X, 'batch_of_rois': R},{'proba_output':P, 'bbox_output':B}, batch_size = 1, nb_epoch=1,verbose=1)
-    '''
+    

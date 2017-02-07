@@ -9,14 +9,6 @@
 
 """Train a Fast R-CNN network on a region of interest database."""
 
-
-'''# ----------mannual gpu allocation if SGE failed -------------
-import os
-gpu_id = '1'
-os.environ["THANO_FLGS"] = "device = gpu%s,floatX = float32" % gpu_id
-'''
-# -------------------------------------------
-
 import _init_paths
 from fast_rcnn.config import cfg, cfg_from_file, cfg_from_list, get_output_dir
 from datasets.factory import get_imdb
@@ -29,7 +21,7 @@ import roi_data_layer.roidb as rdl_roidb
 from keras_model import fastrcnn 
 from keras_model import prepare_data
 from keras.utils.np_utils import to_categorical
-
+from keras.callbacks import ModelCheckpoint,CSVLogger
 
 def get_training_roidb(imdb):
     """Returns a roidb (Region of Interest database) for use in training."""
@@ -146,7 +138,6 @@ if __name__ == '__main__':
     print 'done'
     
     print 'loading images ...'
-    # images are resized to 224x224
     prepare_data.add_image_data(roidb)
     
     print 'Computing normalized roi boxes coordinates ...'
@@ -154,12 +145,22 @@ if __name__ == '__main__':
     print 'done'
   
 
-    trn_data_list = roidb[0:8]  
-    trn = datagen( trn_data_list, nb_epoch = len(trn_data_list) )   
+    trn_data_list = roidb[0:5000]  
+    #trn = datagen( trn_data_list, nb_epoch = len(trn_data_list) )   
+    # generate data infinitely
+    trn = datagen( trn_data_list, nb_epoch = -1 )   
     
-    fastrcnn.fast.fit_generator(trn,samples_per_epoch = 1 ,nb_epoch = 10) 
+    val_data_list = roidb[5000:]
+    val = datagen( val_data_list, nb_epoch = -1, mode = 'validation')
     
-
+    # define callbacks
+    csv_logger = CSVLogger('2012train.log')
+    check_point = ModelCheckpoint(filepath = 'model.hdf5', monitor = 'loss',save_best_only = True)
+    
+    fastrcnn.fast.fit_generator(trn,samples_per_epoch = 1 ,nb_epoch = 5, validation_data = val, nb_val_samples = 10,callbacks = [csv_logger,check_point]) 
+    
+    #fastrcnn.fast.fit_generator(trn,samples_per_epoch = 100 ,nb_epoch = 50, validation_data = val, nb_val_samples = len(val_data_list)) 
+    
 
 
 

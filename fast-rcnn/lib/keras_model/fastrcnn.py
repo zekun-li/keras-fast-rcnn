@@ -40,25 +40,18 @@ from keras.utils.np_utils import to_categorical
 target_h = 7
 target_w = 7
 nb_classes = 21 # 1000
+# coord (1x4 with xmin, ymin, xmax, ymax) has been normalized to (0,1)
 def _per_roi_pooling( coord, x ):
-    #target_h = 4
-    #target_w = 4
     #x = tt.tensor3() # 512x7x7 float tensor
     #coord = tt.fvector() # [ xmin, ymin, xmax, ymax ] in [0,1] x-width,y-height
     # step 1: float coord to int
     nb_rows = x.shape[1] # height,y
     nb_cols = x.shape[2] # width,x
-    icoords = tt.iround(coord * nb_rows)
-    #icoords[0] = tt.iround( coord[0] * nb_cols) # assume coord has been normalized to (0,1)
-    #icoords[1] = tt.iround( coord[1] * nb_rows)
-    #icoords[2] = tt.iround( coord[2] * nb_cols)
-    #icoords[3] = tt.iround( coord[3] * nb_rows)
-    #xmin = icoords[0]
-    #ymin = icoords[1]
-    # 0 <= xmin <= nb_cols
-    xmin = tt.clip(icoords[0],0,nb_cols)
-    # 0 <= ymin <= nb_rows
-    ymin = tt.clip(icoords[1],0,nb_rows)
+    icoords = tt.iround(coord * [nb_cols, nb_rows, nb_cols, nb_rows]) # xmin,xmax multiply nb_cols, ymin,ymax multiply nb_rows
+    # 0 <= xmin < nb_cols
+    xmin = tt.clip(icoords[0],0,nb_cols-1)
+    # 0 <= ymin < nb_rows
+    ymin = tt.clip(icoords[1],0,nb_rows-1)
 
     xmax = tt.clip( icoords[2], 1+xmin, nb_cols ) # min(xmax) = 1+xmin, max(xmax) = nb_cols
     ymax = tt.clip( icoords[3], 1+ymin, nb_rows ) # min (ymax) = 1+ymin, max(ymax) = nb_rows
@@ -197,13 +190,11 @@ def bbox_regressor( nb_classes = nb_classes ) :
 def our_categorical_crossentropy(softmax_proba_2d,true_dist_2d, eps = 1e-5):
     return tt.nnet.nnet.categorical_crossentropy(softmax_proba_2d + eps, true_dist_2d)
 
-# wrong - softmax_proba: 2D (nb_rois*21), output softmax probability from fully connected layer
-# wrong - true_dist: 1D (nb_rois) vector of ints, each int is the class_label
-# corrected: softmax_proba and true_dist are both 3D, needs one-hot-encoding before passing params 
+# softmax_proba: (nb_samples x nb_rois x 21) output softmax probability from fully connected layer
+# true_dist: (nb_samples x nb_rois x 21). Labels after one-hot-encoding 
 def our_proba_loss(true_dist_3d,softmax_proba_3d):
     loss_tensor,_ = scan( fn = our_categorical_crossentropy, sequences = [softmax_proba_3d, true_dist_3d])
     return loss_tensor
-    #return tt.nnet.nnet.categorical_crossentropy(softmax_proba + eps, true_dist)
 
 # L1 smooth function
 # smooth(x) = 0.5*x^2  if |x|<1
@@ -287,6 +278,7 @@ input_r = Input( shape = ( None, 4 ), name = 'batch_of_rois' )
 # define four major modules
 featex, classifier = create_vgg_featex_classifier()
 vgg_conv_output = featex( input_x )
+
 pool_roi_output = merge( inputs = [ vgg_conv_output, input_r ], mode = roi_pooling, output_shape = roi_output_shape )
 bbox_pred = bbox_regressor()
 # define two outputs
@@ -295,6 +287,7 @@ bbox_output = TimeDistributed( bbox_pred, name = 'bbox_output' )( pool_roi_outpu
 # define model
 fast = Model( input = [input_x, input_r], output = [ proba_output, bbox_output ] )
 fast.summary()
+
 # TODO: compile model
 # 1) you need to compile this model only ONCE
 # 2) you should compile this model with your customized loss functions {our_proba_loss}, {our_bbox_loss}
@@ -304,7 +297,6 @@ fast.summary()
 
 fast.compile( optimizer = 'sgd', loss_weights = [ 1., 1. ], 
               loss = { 'proba_output' : our_proba_loss, 'bbox_output' : our_bbox_loss } )
-
 
 
 def datagen( data_list, mode = 'training', nb_epoch = -1 ) :
@@ -331,24 +323,48 @@ def datagen( data_list, mode = 'training', nb_epoch = -1 ) :
 if __name__  == "__main__":
     
     import pickle     
-    with open("../../run/roidb.pickle","r") as f:       
+    with open("../../run/full_roidb.pickle","r") as f:       
         roidb = pickle.load(f)    
 
+
+    # DEBUG 
+    for i in range(15,len(roidb)):
+        print i
+        X = np.expand_dims(roidb[i]['image_data'],axis = 0)
+        R = np.expand_dims(roidb[i]['box_normalized'],axis = 0)
+        P = roidb[i]['bbox_targets'][:,0].astype(np.int32) # get label
+        P = np.expand_dims(to_categorical(P,21).astype(np.float32),axis = 0)
+        B = np.expand_dims(roidb[i]['bbox_targets'],axis=0) # get bbox_coordinates
+
+        #R = R[:,-1:4,:]
+        #P = P[:,0:4,:]
+        #B = B[:,0:4,:]
+        fast.predict({'batch_of_images': X, 'batch_of_rois': R})
+        #fastrcnn.fast.fit({'batch_of_images': X, 'batch_of_rois': R},{'proba_output':P, 'bbox_output':B}, batch_size = 1, nb_epoch=1,verbose=1)
+    
+
+        
+
+
+
+
+    # USE of GENERATOR
+    '''
     trn_data_list = roidb[0:8]  
     trn = datagen( trn_data_list, nb_epoch = len(trn_data_list) )   
-    '''
+   
     for X_lut, Y_lut in trn :
         print X_lut, Y_lut                                                                            
+   
+    
+    #val_data_list = roidb[8:]                                      
+    #val = datagen( val_data_list, nb_epoch = len(val_data_list), mode = 'validation' )  
+    
+    # Note: nb_epoch should be <= len(sequence of both trn or val)
+    fast.fit_generator(trn,samples_per_epoch = 1 ,nb_epoch = 10) 
+    #fast.fit_generator(trn,samples_per_epoch = 1 ,nb_epoch = 10, validation_data = val, nb_val_samples = len(val_dat
     '''
     
-    val_data_list = roidb[8:]                                      
-    val = datagen( val_data_list, nb_epoch = len(val_data_list), mode = 'validation' )  
-    
-    #fast.fit_generator(trn,samples_per_epoch = 1 ,nb_epoch = 10) 
-    fast.fit_generator(trn,samples_per_epoch = 1 ,nb_epoch = 10, validation_data = val, nb_val_samples = len(val_data_list)) 
-    
-
-
     '''
     # test code
     x = np.random.randn( 2, 3, 224, 224 ).astype( np.float32 )
@@ -358,35 +374,8 @@ if __name__  == "__main__":
     print 'proba_output.shape =', y[0].shape
     print 'bbox_output.shape =', y[1].shape
     '''
-
-    '''
-    # if case we can all training data in memory, then you can train the model as follows
-    from keras.utils.np_utils import to_categorical
-
-    nb_samples = 1
-    nb_rois = 40
-    X = np.random.randint(0, 225, ( nb_samples, 3, 224, 224 )).astype( np.float32 )
-    R = np.concatenate( [ np.zeros( (nb_samples, nb_rois, 2 ) ), np.ones(( nb_samples, nb_rois, 2 ) ) ], axis = -1 ).astype( np.float32 )
-    P = to_categorical( np.random.choice( range( nb_classes ), ( nb_samples, nb_rois ) ).ravel(), nb_classes +1 ).reshape( ( nb_samples, nb_rois, -1 ) )
-    #B = np.random.rand( nb_samples, nb_rois, nb_classes * 4 )
-    B = np.random.randn(nb_samples,nb_rois,4)
-    fast.fit( { 'batch_of_images' : X, 'batch_of_rois' : R }, {'proba_output' : P, 'bbox_output' : B }, batch_size = 1, nb_epoch = 1, verbose = 1 )
-
-    '''
    
     '''
-    i = 3
-    X = np.expand_dims(roidb[i]['image_data'],axis = 0)
-    R = np.expand_dims(roidb[i]['box_normalized'],axis = 0)
-    P = roidb[i]['bbox_targets'][:,0].astype(np.int32) # get label
-    P = np.expand_dims(to_categorical(P,21).astype(np.float32),axis = 0)
-    #B = np.expand_dims(roidb[i]['bbox_targets'][:,1:],axis=0) # get bbox_coordinates
-    B = np.expand_dims(roidb[i]['bbox_targets'],axis=0) # get label + bbox_coordinates
-    
-    print R
-    print P
-    print B
-    
     print fast.predict({'batch_of_images': X, 'batch_of_rois': R})
     print fast.evaluate({'batch_of_images':X, 'batch_of_rois':R},{'proba_output':P, 'bbox_output':B},batch_size = 1,verbose=1)
     fast.fit({'batch_of_images': X, 'batch_of_rois': R},{'proba_output':P, 'bbox_output':B}, batch_size = 1, nb_epoch=1,verbose=1)
