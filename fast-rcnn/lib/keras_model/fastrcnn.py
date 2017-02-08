@@ -306,18 +306,27 @@ def datagen( data_list, mode = 'training', nb_epoch = -1 ) :
     while ( epoch < nb_epoch ) or ( nb_epoch < 0 ) :
         if ( mode == 'training' ) :
             np.random.shuffle( indices )
+        buffer = None
         for idx in indices :
-            X =  np.expand_dims( data_list[idx]['image_data'], axis = 0)
-            R = np.expand_dims(data_list[idx]['box_normalized'],axis = 0)
-            P = data_list[idx]['bbox_targets'][:,0].astype(np.int32) # get label
-            P = np.expand_dims(to_categorical(P,21).astype(np.float32),axis = 0)
-            B = np.expand_dims(data_list[idx]['bbox_targets'],axis=0) # get label+ bbox_coordinates
-   
-            yield ( { 'batch_of_images' : X ,
-                      'batch_of_rois'   : R },
-                    { 'proba_output'  : P ,
-                      'bbox_output' : B} )
+            try :
+                X = np.expand_dims( data_list[idx]['image_data'], axis = 0)
+                R = np.expand_dims(data_list[idx]['box_normalized'],axis = 0)
+                P = data_list[idx]['bbox_targets'][:,0].astype(np.int32) # get label
+                P = np.expand_dims(to_categorical(P,21).astype(np.float32),axis = 0)
+                B = np.expand_dims(data_list[idx]['bbox_targets'],axis=0) # get label+ bbox_coordinates
+                if ( np.any( [ v is None for v in [ X, R, P, B ] ] ) ) :
+                    print "Meet None on sample", idx
+                else :
+                    buffer  = ( { 'batch_of_images' : X ,
+                           'batch_of_rois'   : R },
+                           { 'proba_output'  : P ,
+                           'bbox_output' : B} )
+            except Exception, e :
+                print "Fail on sample", idx, e
+            if ( buffer is not None ) :
+                yield buffer 
         epoch += 1
+        print "GenEpoch =", epoch
 
 
 if __name__  == "__main__":
