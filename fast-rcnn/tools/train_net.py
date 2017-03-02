@@ -22,6 +22,9 @@ from keras_model import fastrcnn
 from keras_model import prepare_data
 from keras.utils.np_utils import to_categorical
 from keras.callbacks import ModelCheckpoint,CSVLogger
+import time
+import pickle
+import os
 
 def get_training_roidb(imdb):
     """Returns a roidb (Region of Interest database) for use in training."""
@@ -135,15 +138,38 @@ if __name__ == '__main__':
     print 'Computing bounding-box regression targets...'
     # bbox_means, bbox_stds haven't been used so far
     bbox_means, bbox_stds = rdl_roidb.add_bbox_regression_targets(roidb)
-    print 'done'
     
+    cache_file = os.path.join('run',args.imdb_name+'.roidb')
+    if os.path.exists(cache_file):
+        print 'Loading roidb from file...'
+        with open(cache_file,'rb') as fid:
+            roidb = pickle.load(fid)
+        print '{} roidb loaded from {}'.format(args.imdb_name, cache_file)
+    else: 
+        imdb = get_imdb(args.imdb_name)
+        print 'Loaded dataset `{:s}` for training'.format(imdb.name)
+        roidb = get_training_roidb(imdb)
+
+        #output_dir = get_output_dir(imdb, None)
+        #print 'Output will be saved to `{:s}`'.format(output_dir)
+
+        print 'Computing bounding-box regression targets...'
+        # bbox_means, bbox_stds haven't been used so far
+        bbox_means, bbox_stds = rdl_roidb.add_bbox_regression_targets(roidb)
+
+        
+        print 'Saving roidb to file...'
+        with open(cache_file,'wb') as fid:
+            pickle.dump(roidb,fid)
+        print 'wrote roidb to `{}`'.format(cache_file)
+        
+    # No need to store image data to pickle file.
     print 'loading images ...'
     prepare_data.add_image_data(roidb)
-    
     print 'Computing normalized roi boxes coordinates ...'
     prepare_data.add_normalized_bbox(roidb)
+    print "roidb has {} images".format(len(roidb))
     print 'done'
-  
 
     trn_data_list = roidb[0:5000]  
     #trn = datagen( trn_data_list, nb_epoch = len(trn_data_list) )   
@@ -154,16 +180,15 @@ if __name__ == '__main__':
     val = datagen( val_data_list, nb_epoch = -1, mode = 'validation')
     
     # define callbacks
-    csv_logger = CSVLogger('2012train.log')
-    check_point = ModelCheckpoint(filepath = 'model.hdf5', monitor = 'loss',save_best_only = True)
-    
-    fastrcnn.fast.fit_generator(trn,samples_per_epoch = 1 ,nb_epoch = 5, validation_data = val, nb_val_samples = 10,callbacks = [csv_logger,check_point]) 
-    
-    #fastrcnn.fast.fit_generator(trn,samples_per_epoch = 100 ,nb_epoch = 50, validation_data = val, nb_val_samples = len(val_data_list)) 
-    
+    csv_logger = CSVLogger('output/2012train.log')
+    check_point = ModelCheckpoint(filepath = 'output/model.hdf5', monitor = 'loss',save_best_only = True)
 
-
-
+    print "training ..."
+    tic  = time.clock()
+    fastrcnn.fast.fit_generator(trn,samples_per_epoch = 300 ,nb_epoch = 10, validation_data = val, nb_val_samples = 100,callbacks = [csv_logger,check_point]) 
+    toc = time.clock()
+    print "done training, used %d secs" % (toc-tic)
+    
     '''
     i = 0
     X = np.expand_dims(roidb[i]['image_data'],axis = 0)

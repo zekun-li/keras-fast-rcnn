@@ -6,10 +6,11 @@ Created on Tue Dec  6 15:45:35 2016
 """
 
 import os
-gpu_id = '1'
-#gpu_id = os.environ["SGE_GPU"]
+#gpu_id = '1'
+gpu_id = os.environ["SGE_GPU"]
 print gpu_id
-os.environ["THEANO_FLAGS"] = "device=gpu%s,floatX=float32" % gpu_id
+os.environ["CUDA_LAUNCH_BLOCKING"]='1'
+os.environ["THEANO_FLAGS"] = "device=gpu%s,floatX=float32,profile=True" % gpu_id
 print os.environ["THEANO_FLAGS"]
 import sys
 #sys.path.insert(0, '/nfs/isicvlnas01/users/yue_wu/thirdparty/keras_1.1.2/keras/' )
@@ -32,15 +33,16 @@ from keras.models import Model,Sequential
 from keras.engine.topology import Layer
 from keras.layers.core import Dense, Dropout, Activation, Permute, Reshape
 from keras.layers import Convolution2D, MaxPooling2D, Dense, Dropout, Activation, Flatten, ZeroPadding2D, UpSampling2D
-from keras.optimizers import SGD
+from keras.optimizers import SGD,Adadelta
 from theano.ifelse import ifelse
 from keras.utils.np_utils import to_categorical
-
+from pool import max_pooling,slice_pooling # self-defined max pooling
 
 target_h = 7
 target_w = 7
 nb_classes = 21 # 1000
 # coord (1x4 with xmin, ymin, xmax, ymax) has been normalized to (0,1)
+# x: 3d tensor
 def _per_roi_pooling( coord, x ):
     #x = tt.tensor3() # 512x7x7 float tensor
     #coord = tt.fvector() # [ xmin, ymin, xmax, ymax ] in [0,1] x-width,y-height
@@ -63,14 +65,20 @@ def _per_roi_pooling( coord, x ):
 
     # step 2: extract raw sub-stensor
     roi = x[:, ymin:ymax, xmin:xmax ] 
-    # step 3: resize raw to 4x4
+    # step 3: resize raw to target_hx target_w
+    '''
+    # method1 (slow): upsampling -> downsampling 
     subtensor_h = ymax - ymin
     subtensor_w = xmax - xmin
     # upsample by ( target_h, target_w ) -> ( subtensor_h * target_h, subtensor_w * target_w )
     kernel = tt.ones((target_h, target_w)) # create ones filter
     roi_up,_ =scan(fn=lambda r2d, kernel: kron(r2d,kernel),sequences = roi,non_sequences = kernel)
     # downsample to (target_h, target_w)
-    target = roi_up[:,::subtensor_h,::subtensor_w]
+    #target = roi_up[:,::subtensor_h,::subtensor_w]
+    target = max_pooling(roi_up, subtensor_h, subtensor_w)
+    '''
+    # method 2
+    target = slice_pooling(roi,target_h, target_w)
     return K.flatten( target )
 
 def _per_sample_pooling( x, coords, nb_feat_rows = 7, nb_feat_cols = 7 ):
@@ -78,8 +86,11 @@ def _per_sample_pooling( x, coords, nb_feat_rows = 7, nb_feat_cols = 7 ):
     roi_all,_ = scan(fn = _per_roi_pooling, sequences = coords, non_sequences = [x] ) 
     return roi_all#K.expand_dims( roi_all, 0 )
 
+# x4d: nb_samples x nb_channels x 2D
+# coords3d: nb_samples x nb_rois x 4
 def roi_pooling( x_coords ) :
     x4d, coords3d = x_coords
+    # loop through all samples 
     batch_roi_all, _ = scan( fn = _per_sample_pooling, sequences = [ x4d, coords3d ] )
     return batch_roi_all
 
@@ -100,7 +111,7 @@ def create_vgg_featex_classifier() :
     #--------------------------------------------------------------------------
     featex = Sequential()
     # block 1
-    featex.add(ZeroPadding2D((1,1),input_shape=(3,224,224)))
+    featex.add(ZeroPadding2D((1,1),input_shape=(3,None,None)))
     featex.add(Convolution2D(64, 3, 3, activation='relu'))
     featex.add(ZeroPadding2D((1,1)))
     featex.add(Convolution2D(64, 3, 3, activation='relu'))
@@ -295,7 +306,7 @@ fast.summary()
 #from keras.metrics import mean_squared_error as our_proba_loss
 #from keras.metrics import mean_absolute_error as our_bbox_loss
 
-fast.compile( optimizer = 'sgd', loss_weights = [ 1., 1. ], 
+fast.compile( optimizer = 'adadelta', loss_weights = [ 1., 1. ], 
               loss = { 'proba_output' : our_proba_loss, 'bbox_output' : our_bbox_loss } )
 
 
@@ -332,12 +343,12 @@ def datagen( data_list, mode = 'training', nb_epoch = -1 ) :
 if __name__  == "__main__":
     
     import pickle     
-    with open("../../run/full_roidb.pickle","r") as f:       
+    with open("../../run/roidb.pickle","r") as f:       
         roidb = pickle.load(f)    
 
 
     # DEBUG 
-    for i in range(15,len(roidb)):
+    for i in range(0,len(roidb)):
         print i
         X = np.expand_dims(roidb[i]['image_data'],axis = 0)
         R = np.expand_dims(roidb[i]['box_normalized'],axis = 0)
@@ -353,10 +364,6 @@ if __name__  == "__main__":
     
 
         
-
-
-
-
     # USE of GENERATOR
     '''
     trn_data_list = roidb[0:8]  

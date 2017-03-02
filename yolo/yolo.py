@@ -109,6 +109,18 @@ def create_yolo_model():
     
     return yolo
 
+# global variables for loss function
+lambda_coord = 5
+lambda_noobj = 0.5
+
+# target: 3D, S^2 x Boxes x (4 coords + 20 classes + objectness) ?
+def multi_part_loss(target,predicted):
+    x_target = target[:,:,0]
+    y_target = target[:,:,1]
+    x_predicted = predicted[:,:,0]
+    y_predicted = predicted[:,:,0]
+    
+
 if __name__ == "__main__":
     # construct yolo network
     input_x = Input( shape = ( 3,448 ,448 ), name = 'batch_of_images' )

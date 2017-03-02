@@ -1,7 +1,10 @@
 *.pyc
 *.py~
 #*.py#
-fast-rcnn/data
-backup_code
+fast-rcnn/data/
+backup_code/
 *.pickle
 *.pkl
+*.hdf5
+*.roidb
+fast-rcnn/run/
