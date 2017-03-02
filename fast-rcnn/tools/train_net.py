@@ -188,7 +188,6 @@ if __name__ == '__main__':
     fastrcnn.fast.fit_generator(trn,samples_per_epoch = 300 ,nb_epoch = 10, validation_data = val, nb_val_samples = 100,callbacks = [csv_logger,check_point]) 
     toc = time.clock()
     print "done training, used %d secs" % (toc-tic)
-    
     '''
     i = 0
     X = np.expand_dims(roidb[i]['image_data'],axis = 0)
