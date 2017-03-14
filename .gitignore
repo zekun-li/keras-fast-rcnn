@@ -7,4 +7,4 @@ backup_code/
 *.pkl
 *.hdf5
 *.roidb
-fast-rcnn/run/
+another-fast-rcnn/

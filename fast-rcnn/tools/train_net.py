@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python
 
 # --------------------------------------------------------
@@ -22,6 +23,7 @@ from keras_model import fastrcnn
 from keras_model import prepare_data
 from keras.utils.np_utils import to_categorical
 from keras.callbacks import ModelCheckpoint,CSVLogger
+from keras.models import load_model
 import time
 import pickle
 import os
@@ -179,15 +181,30 @@ if __name__ == '__main__':
     val_data_list = roidb[5000:]
     val = datagen( val_data_list, nb_epoch = -1, mode = 'validation')
     
+    
+    fastrcnn.fast.load_weights('output/model_backup.hdf5')
     # define callbacks
     csv_logger = CSVLogger('output/2012train.log')
     check_point = ModelCheckpoint(filepath = 'output/model.hdf5', monitor = 'loss',save_best_only = True)
-
+    
+    
     print "training ..."
     tic  = time.clock()
-    fastrcnn.fast.fit_generator(trn,samples_per_epoch = 300 ,nb_epoch = 10, validation_data = val, nb_val_samples = 100,callbacks = [csv_logger,check_point]) 
+    history = fastrcnn.fast.fit_generator(trn,samples_per_epoch = 3000 ,nb_epoch = 50, validation_data = val, nb_val_samples = 717,callbacks = [csv_logger,check_point]) 
     toc = time.clock()
     print "done training, used %d secs" % (toc-tic)
+    
+    import matplotlib.pyplot as plt
+    plt.plot(history.history['loss'])
+    plt.plot(history.history['val_loss'])
+    plt.title('model loss')
+    plt.ylabel('loss')
+    plt.xlabel('epoch')
+    plt.legend(['train', 'val'], loc='upper left')
+    plt.savefig('loss.jpg')
+    #plt.show()
+    plt.close()
+
     '''
     i = 0
     X = np.expand_dims(roidb[i]['image_data'],axis = 0)

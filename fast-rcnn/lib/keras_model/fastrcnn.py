@@ -36,7 +36,7 @@ from keras.layers import Convolution2D, MaxPooling2D, Dense, Dropout, Activation
 from keras.optimizers import SGD,Adadelta
 from theano.ifelse import ifelse
 from keras.utils.np_utils import to_categorical
-from pool import max_pooling,slice_pooling # self-defined max pooling
+from pool import max_pooling,slice_pooling,float_max_pooling # self-defined max pooling
 
 target_h = 7
 target_w = 7
@@ -78,7 +78,8 @@ def _per_roi_pooling( coord, x ):
     target = max_pooling(roi_up, subtensor_h, subtensor_w)
     '''
     # method 2
-    target = slice_pooling(roi,target_h, target_w)
+    #target = slice_pooling(roi,target_h, target_w)
+    target = float_max_pooling(roi,target_h, target_w)
     return K.flatten( target )
 
 def _per_sample_pooling( x, coords, nb_feat_rows = 7, nb_feat_cols = 7 ):
@@ -161,6 +162,7 @@ def create_vgg_featex_classifier() :
     classifier.add(Dense(4096, activation='relu'))
     classifier.add(Dropout(0.5))
     classifier.add(Dense( nb_classes, activation='softmax') )
+    '''
     #--------------------------------------------------------------------------
     # Load initial weights
     #--------------------------------------------------------------------------
@@ -171,6 +173,7 @@ def create_vgg_featex_classifier() :
             cl.set_weights( vl.get_weights() )
         except Exception, e :
             print "WARNING: cannot set weights for", cl, e, "skipped"
+    '''
     return featex, classifier
     
 def bbox_regressor( nb_classes = nb_classes ) :
@@ -299,6 +302,7 @@ bbox_output = TimeDistributed( bbox_pred, name = 'bbox_output' )( pool_roi_outpu
 fast = Model( input = [input_x, input_r], output = [ proba_output, bbox_output ] )
 fast.summary()
 
+
 # TODO: compile model
 # 1) you need to compile this model only ONCE
 # 2) you should compile this model with your customized loss functions {our_proba_loss}, {our_bbox_loss}
@@ -306,7 +310,8 @@ fast.summary()
 #from keras.metrics import mean_squared_error as our_proba_loss
 #from keras.metrics import mean_absolute_error as our_bbox_loss
 
-fast.compile( optimizer = 'adadelta', loss_weights = [ 1., 1. ], 
+sgd = SGD(lr=0.00001, momentum=0.0, decay=0.0, nesterov=False)
+fast.compile( optimizer = sgd, loss_weights = [ 1., 1. ], 
               loss = { 'proba_output' : our_proba_loss, 'bbox_output' : our_bbox_loss } )
 
 

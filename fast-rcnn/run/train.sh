@@ -1,5 +1,6 @@
 #!/bin/bash
-
+echo "HOSTNAME:"
+echo ${HOSTNAME}
 echo "SGE_GPU:"
 echo ${SGE_GPU}
 echo "TMPDIR:"
