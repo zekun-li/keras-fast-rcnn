@@ -1,4 +1,0 @@
-Using Theano backend.
-Using gpu device 0: GeForce GTX TITAN X (CNMeM is disabled, cuDNN not available)
-/nfs/isicvlnas01/share/anaconda/lib/python2.7/site-packages/keras/engine/topology.py:368: UserWarning: The `regularizers` property of layers/models is deprecated. Regularization losses are now managed via the `losses` layer/model property.
-  warnings.warn('The `regularizers` property of '

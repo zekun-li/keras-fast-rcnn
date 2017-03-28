@@ -13,7 +13,7 @@ os.environ["CUDA_LAUNCH_BLOCKING"]='1'
 os.environ["THEANO_FLAGS"] = "device=gpu%s,floatX=float32,profile=True" % gpu_id
 print os.environ["THEANO_FLAGS"]
 import sys
-#sys.path.insert(0, '/nfs/isicvlnas01/users/yue_wu/thirdparty/keras_1.1.2/keras/' )
+sys.path.insert(0, '/nfs/isicvlnas01/users/yue_wu/thirdparty/keras_1.1.2/keras/' )
 import keras
 print keras.__version__
 
@@ -78,8 +78,8 @@ def _per_roi_pooling( coord, x ):
     target = max_pooling(roi_up, subtensor_h, subtensor_w)
     '''
     # method 2
-    #target = slice_pooling(roi,target_h, target_w)
-    target = float_max_pooling(roi,target_h, target_w)
+    target = slice_pooling(roi,target_h, target_w)
+    #target = float_max_pooling(roi,target_h, target_w)
     return K.flatten( target )
 
 def _per_sample_pooling( x, coords, nb_feat_rows = 7, nb_feat_cols = 7 ):
@@ -184,7 +184,7 @@ def bbox_regressor( nb_classes = nb_classes ) :
     bbox.add(Dropout(0.5))
     bbox.add(Dense(256, activation = 'relu'))
     bbox.add(Dropout(0.5))
-    bbox.add(Dense(4, activation = 'tanh'))
+    bbox.add(Dense(4, activation = 'linear'))
     return bbox
     '''
     bbox = Sequential()
@@ -310,7 +310,7 @@ fast.summary()
 #from keras.metrics import mean_squared_error as our_proba_loss
 #from keras.metrics import mean_absolute_error as our_bbox_loss
 
-sgd = SGD(lr=0.00001, momentum=0.0, decay=0.0, nesterov=False)
+sgd = SGD(lr=0.0001, momentum=0.0, decay=0.0, nesterov=False)
 fast.compile( optimizer = sgd, loss_weights = [ 1., 1. ], 
               loss = { 'proba_output' : our_proba_loss, 'bbox_output' : our_bbox_loss } )
 

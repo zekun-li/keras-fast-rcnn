@@ -72,6 +72,7 @@ def parse_args():
     parser.add_argument('--set', dest='set_cfgs',
                         help='set config keys', default=None,
                         nargs=argparse.REMAINDER)
+    parser.add_argument('--data',dest='data_dir',help = 'data directory',default=None,type=str)
 
     if len(sys.argv) == 1:
         parser.print_help()
@@ -114,33 +115,13 @@ if __name__ == '__main__':
         cfg_from_file(args.cfg_file)
     if args.set_cfgs is not None:
         cfg_from_list(args.set_cfgs)
+    
+    if args.data_dir is not None:
+        datasets.DATA_DIR = args.data_dir
 
     print('Using config:')
     pprint.pprint(cfg)
     '''
-    if not args.randomize:
-        # fix the random seeds (numpy and caffe) for reproducibility
-        np.random.seed(cfg.RNG_SEED)
-        caffe.set_random_seed(cfg.RNG_SEED)
-    '''
-    # set up caffe
-    #caffe.set_mode_gpu()
-    #if args.gpu_id is not None:
-    #    caffe.set_device(args.gpu_id)
-
-    #  gpu_id not is necessary after setting up CUDA_VISIBLE_DEVICES ??
-
-    imdb = get_imdb(args.imdb_name)
-    print 'Loaded dataset `{:s}` for training'.format(imdb.name)
-    roidb = get_training_roidb(imdb)
-
-    output_dir = get_output_dir(imdb, None)
-    print 'Output will be saved to `{:s}`'.format(output_dir)
-
-    print 'Computing bounding-box regression targets...'
-    # bbox_means, bbox_stds haven't been used so far
-    bbox_means, bbox_stds = rdl_roidb.add_bbox_regression_targets(roidb)
-    
     cache_file = os.path.join('run',args.imdb_name+'.roidb')
     if os.path.exists(cache_file):
         print 'Loading roidb from file...'
@@ -164,8 +145,18 @@ if __name__ == '__main__':
         with open(cache_file,'wb') as fid:
             pickle.dump(roidb,fid)
         print 'wrote roidb to `{}`'.format(cache_file)
-        
-    # No need to store image data to pickle file.
+    '''
+    imdb = get_imdb(args.imdb_name)
+    print 'Loaded dataset `{:s}` for training'.format(imdb.name)
+    roidb = get_training_roidb(imdb)
+
+    output_dir = get_output_dir(imdb, None)
+    print 'Output will be saved to `{:s}`'.format(output_dir)
+
+    print 'Computing bounding-box regression targets...'
+    # bbox_means, bbox_stds haven't been used so far
+    bbox_means, bbox_stds = rdl_roidb.add_bbox_regression_targets(roidb)
+
     print 'loading images ...'
     prepare_data.add_image_data(roidb)
     print 'Computing normalized roi boxes coordinates ...'
@@ -182,7 +173,7 @@ if __name__ == '__main__':
     val = datagen( val_data_list, nb_epoch = -1, mode = 'validation')
     
     
-    fastrcnn.fast.load_weights('output/model_backup.hdf5')
+    #fastrcnn.fast.load_weights('output/model_backup.hdf5')
     # define callbacks
     csv_logger = CSVLogger('output/2012train.log')
     check_point = ModelCheckpoint(filepath = 'output/model.hdf5', monitor = 'loss',save_best_only = True)
@@ -201,7 +192,7 @@ if __name__ == '__main__':
     plt.ylabel('loss')
     plt.xlabel('epoch')
     plt.legend(['train', 'val'], loc='upper left')
-    plt.savefig('loss.jpg')
+    plt.savefig('output/loss.jpg')
     #plt.show()
     plt.close()
 
