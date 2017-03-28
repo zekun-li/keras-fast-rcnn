@@ -1,10 +1,10 @@
-import os
-gpu_id = os.environ["SGE_GPU"]
+#import os
+#gpu_id = os.environ["SGE_GPU"]
 #gpu_id = '0'
-print gpu_id
-os.environ["CUDA_LAUNCH_BLOCKING"]='1'
-os.environ["THEANO_FLAGS"] = "device=gpu%s,floatX=float32,profile=False" % gpu_id
-print os.environ["THEANO_FLAGS"]
+#print gpu_id
+#os.environ["CUDA_LAUNCH_BLOCKING"]='1'
+#os.environ["THEANO_FLAGS"] = "device=gpu%s,floatX=float32,profile=False" % gpu_id
+#print os.environ["THEANO_FLAGS"]
 
 import theano.tensor as tt
 from theano import function,scan

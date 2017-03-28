@@ -6,11 +6,11 @@ Created on Tue Dec  6 15:45:35 2016
 """
 
 import os
-#gpu_id = '1'
-gpu_id = os.environ["SGE_GPU"]
+gpu_id = '6'
+#gpu_id = os.environ["SGE_GPU"]
 print gpu_id
 os.environ["CUDA_LAUNCH_BLOCKING"]='1'
-os.environ["THEANO_FLAGS"] = "device=gpu%s,floatX=float32,profile=True" % gpu_id
+os.environ["THEANO_FLAGS"] = "device=gpu%s,floatX=float32,profile=False" % gpu_id
 print os.environ["THEANO_FLAGS"]
 import sys
 sys.path.insert(0, '/nfs/isicvlnas01/users/yue_wu/thirdparty/keras_1.1.2/keras/' )

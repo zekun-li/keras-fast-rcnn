@@ -13,6 +13,7 @@
 import _init_paths
 from fast_rcnn.config import cfg, cfg_from_file, cfg_from_list, get_output_dir
 from datasets.factory import get_imdb
+import datasets
 import argparse
 import pprint
 import numpy as np
