@@ -26,7 +26,7 @@ from keras.utils.np_utils import to_categorical
 from keras.callbacks import ModelCheckpoint,CSVLogger
 from keras.models import load_model
 import time
-import pickle
+import cPickle as pickle
 import os
 
 def get_training_roidb(imdb):
@@ -41,35 +41,62 @@ def get_training_roidb(imdb):
     print 'done'
 
     return imdb.roidb
+'''
+# fbratio = foreground / background
+def background_filter(roidb, fbratio = 1.0):                                                       
+    for ind in xrange(len(roidb)):
+        img_rois = roidb[ind]
+        target_label = img_rois['bbox_targets'][:,0] # vector, target labels for all rois
+        fore_indices = np.where(target_label != 0)[0] # vector
+        back_indices = np.where(target_label == 0)[0] # vector
+        num_fore = len(fore_indices)
+        filtered_num_back = int(num_fore/fbratio)
+        np.random.shuffle(back_indices)
+        filtered_back_indices = back_indices[0:filtered_num_back] # shuffle indices to take background sample from      # vector                       
+        filtered_indices = np.concatenate((fore_indices[:,np.newaxis],filtered_back_indices[:,np.newaxis])) # array
+        filtered_indices = filtered_indices[:,0] # vector 
+        roidb[ind]['box_normalized'] = img_rois['box_normalized'][filtered_indices]
+        roidb[ind]['bbox_targets'] = img_rois['bbox_targets'][filtered_indices]
+             
+    return roidb
+'''
 
-
+# fbratio = foreground / background
+def background_filter(roidb,fbratio = 1.0):
+    for ind in xrange(len(roidb)):
+        img_rois = roidb[ind]
+        target_label = img_rois['bbox_targets'][:,0] # vector, target labels for all rois
+        max_overlaps = img_rois['max_overlaps']
+        fore_indices = np.where(target_label != 0)[0] # vector
+        back_indices = np.where((target_label == 0) &  (max_overlaps >= 0.1))[0] # vector
+        num_fore = len(fore_indices)
+        filtered_num_back = min (int(num_fore/fbratio), len(back_indices))
+        np.random.shuffle(back_indices)
+        filtered_back_indices = back_indices[0:filtered_num_back] # shuffle indices to take background sample from      # vector                       
+        filtered_indices = np.concatenate((fore_indices[:,np.newaxis],filtered_back_indices[:,np.newaxis])) # array
+        filtered_indices = filtered_indices[:,0] # vector 
+        roidb[ind]['box_normalized'] = img_rois['box_normalized'][filtered_indices]
+        roidb[ind]['bbox_targets'] = img_rois['bbox_targets'][filtered_indices]
+             
+    return roidb
 
 def parse_args():
     """
     Parse input arguments
     """
     parser = argparse.ArgumentParser(description='Train a Fast R-CNN network')
-    parser.add_argument('--gpu', dest='gpu_id',
-                        help='GPU device id to use [0]',
-                        default=0, type=int)
-    parser.add_argument('--solver', dest='solver',
-                        help='solver prototxt',
+    #parser.add_argument('--gpu', dest='gpu_id',
+    #                    help='GPU device id to use [0]',
+    #                    default=0, type=int)
+    parser.add_argument('--weights', dest='pretrained_model',
+                        help='initialize with pretrained model weights',
                         default=None, type=str)
-    parser.add_argument('--iters', dest='max_iters',
-                        help='number of iterations to train',
-                        default=40000, type=int)
-    #parser.add_argument('--weights', dest='pretrained_model',
-    #                    help='initialize with pretrained model weights',
-    #                    default=None, type=str)
     parser.add_argument('--cfg', dest='cfg_file',
                         help='optional config file',
                         default=None, type=str)
     parser.add_argument('--imdb', dest='imdb_name',
                         help='dataset to train on',
                         default='voc_2007_trainval', type=str)
-    #parser.add_argument('--rand', dest='randomize',
-    #                    help='randomize (do not use a fixed seed)',
-    #                    action='store_true')
     parser.add_argument('--set', dest='set_cfgs',
                         help='set config keys', default=None,
                         nargs=argparse.REMAINDER)
@@ -81,8 +108,6 @@ def parse_args():
 
     args = parser.parse_args()
     return args
-
-
 
 
 def datagen( data_list, mode = 'training', nb_epoch = -1 ) :
@@ -120,34 +145,17 @@ if __name__ == '__main__':
     if args.data_dir is not None:
         datasets.DATA_DIR = args.data_dir
 
+    # if has pretrained model, load weights from hdf5 file
+    if args.pretrained_model is not None:
+        fastrcnn.fast.load_weights(args.pretrained_model)
+
     print('Using config:')
     pprint.pprint(cfg)
-    '''
-    cache_file = os.path.join('run',args.imdb_name+'.roidb')
-    if os.path.exists(cache_file):
-        print 'Loading roidb from file...'
-        with open(cache_file,'rb') as fid:
-            roidb = pickle.load(fid)
-        print '{} roidb loaded from {}'.format(args.imdb_name, cache_file)
-    else: 
-        imdb = get_imdb(args.imdb_name)
-        print 'Loaded dataset `{:s}` for training'.format(imdb.name)
-        roidb = get_training_roidb(imdb)
 
-        #output_dir = get_output_dir(imdb, None)
-        #print 'Output will be saved to `{:s}`'.format(output_dir)
-
-        print 'Computing bounding-box regression targets...'
-        # bbox_means, bbox_stds haven't been used so far
-        bbox_means, bbox_stds = rdl_roidb.add_bbox_regression_targets(roidb)
-
-        
-        print 'Saving roidb to file...'
-        with open(cache_file,'wb') as fid:
-            pickle.dump(roidb,fid)
-        print 'wrote roidb to `{}`'.format(cache_file)
-    '''
     imdb = get_imdb(args.imdb_name)
+    #imdb.roidb_handler = imdb.selective_search_roidb
+    imdb.roidb_handler = imdb.yolo_roidb
+    
     print 'Loaded dataset `{:s}` for training'.format(imdb.name)
     roidb = get_training_roidb(imdb)
 
@@ -162,31 +170,35 @@ if __name__ == '__main__':
     prepare_data.add_image_data(roidb)
     print 'Computing normalized roi boxes coordinates ...'
     prepare_data.add_normalized_bbox(roidb)
+ 
+    print 'filtering roidb'
+    roidb[0:5000] = background_filter(roidb[0:5000])
     print "roidb has {} images".format(len(roidb))
     print 'done'
 
     trn_data_list = roidb[0:5000]  
     #trn = datagen( trn_data_list, nb_epoch = len(trn_data_list) )   
     # generate data infinitely
-    trn = datagen( trn_data_list, nb_epoch = -1 )   
+    trn = datagen( trn_data_list, nb_epoch = -1, mode = 'training' )   
     
     val_data_list = roidb[5000:]
     val = datagen( val_data_list, nb_epoch = -1, mode = 'validation')
-    
-    
-    #fastrcnn.fast.load_weights('output/model_backup.hdf5')
+
     # define callbacks
-    csv_logger = CSVLogger('output/2012train.log')
-    check_point = ModelCheckpoint(filepath = 'output/model.hdf5', monitor = 'loss',save_best_only = True)
+    #csv_logger = CSVLogger('output/2012train.log')
+    # save the model every 10 epochs
+    model_save_path = 'output/weights/'+'ss_samperepoch1000_maxpool_bgfilter_lr0.0001-train-{epoch:02d}-{val_loss:.2f}.hdf5'
+    check_point = ModelCheckpoint(filepath = model_save_path, monitor = 'val_loss',save_best_only = False, save_weights_only = True)
     
     
     print "training ..."
     tic  = time.clock()
-    history = fastrcnn.fast.fit_generator(trn,samples_per_epoch = 3000 ,nb_epoch = 50, validation_data = val, nb_val_samples = 717,callbacks = [csv_logger,check_point]) 
+    history = fastrcnn.fast.fit_generator(trn,samples_per_epoch = 1000 ,nb_epoch = 1000, validation_data = val, nb_val_samples = 717,callbacks = [check_point],max_q_size=2) 
     toc = time.clock()
     print "done training, used %d secs" % (toc-tic)
     
     import matplotlib.pyplot as plt
+    plt.switch_backend('agg')
     plt.plot(history.history['loss'])
     plt.plot(history.history['val_loss'])
     plt.title('model loss')

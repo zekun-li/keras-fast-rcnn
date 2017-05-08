@@ -39,8 +39,8 @@ class pascal_voc(datasets.imdb):
         self._image_ext = '.jpg'
         self._image_index = self._load_image_set_index()
         # Default to roidb handler
-        #self._roidb_handler = self.selective_search_roidb
-        self._roidb_handler = self.yolo_roidb # use YOLO proposals
+        self._roidb_handler = self.selective_search_roidb
+        #self._roidb_handler = self.yolo_roidb # use YOLO proposals
 
         # PASCAL specific config options
         self.config = {'cleanup'  : True,
@@ -140,8 +140,8 @@ class pascal_voc(datasets.imdb):
         return roidb
 
     def _load_selective_search_roidb(self, gt_roidb):
-        filename = os.path.abspath(os.path.join(self.cache_path, '..',
-                                                'selective_search_data',
+        filename = os.path.abspath(os.path.join(datasets.ROOT_DIR,
+                                                'data/selective_search_data',
                                                 self.name + '.mat'))
         assert os.path.exists(filename), \
                'Selective search data not found at: {}'.format(filename)
@@ -175,7 +175,7 @@ class pascal_voc(datasets.imdb):
             yolo_roidb = self._load_yolo_roidb(gt_roidb)
             roidb = datasets.imdb.merge_roidbs(gt_roidb, yolo_roidb)
         else:
-            roidb = self._load_yolo__roidb(None)
+            roidb = self._load_yolo_roidb(None)
 
         '''
         with open(cache_file, 'wb') as fid:
@@ -358,7 +358,13 @@ class pascal_voc(datasets.imdb):
 
     def _get_voc_results_file_template(self):
         # VOCdevkit/results/VOC2007/Main/<comp_id>_det_test_aeroplane.txt
-        filename = 'comp4' + '_det_' + self._image_set + '_{:s}.txt'
+        '''
+        use_salt = self.config['use_salt']
+        comp_id = 'comp4'
+        if use_salt:
+            comp_id += '-{}'.format(os.getpid())
+        '''
+        filename = 'comp4'+ '_det_' + self._image_set + '_{:s}.txt'
         path = os.path.join(
             self._devkit_path,
             'results',

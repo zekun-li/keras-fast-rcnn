@@ -142,6 +142,10 @@ def voc_eval(detpath,
     confidence = np.array([float(x[1]) for x in splitlines])
     BB = np.array([[float(z) for z in x[2:]] for x in splitlines])
 
+    #################################################################
+    #if len(confidence) ==0:
+    #    return 0,0,0
+    ##################################################################
     # sort by confidence
     sorted_ind = np.argsort(-confidence)
     sorted_scores = np.sort(-confidence)

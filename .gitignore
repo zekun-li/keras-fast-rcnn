@@ -7,4 +7,7 @@ backup_code/
 *.pkl
 *.hdf5
 *.roidb
+fast-rcnn/run/
+fast-rcnn/output/weights/
 another-fast-rcnn/
+augmentation-fast-rcnn/

@@ -69,7 +69,6 @@ def add_bbox_regression_targets(roidb):
     means = sums / class_counts
     stds = np.sqrt(squared_sums / class_counts - means ** 2)
     
-    ''' ------ disabled target normalization -------
     # Normalize targets
     for im_i in xrange(num_images):
         targets = roidb[im_i]['bbox_targets']
@@ -77,7 +76,6 @@ def add_bbox_regression_targets(roidb):
             cls_inds = np.where(targets[:, 0] == cls)[0]
             roidb[im_i]['bbox_targets'][cls_inds, 1:] -= means[cls, :]
             roidb[im_i]['bbox_targets'][cls_inds, 1:] /= stds[cls, :]
-    '''
     
     # These values will be needed for making predictions
     # (the predicts will need to be unnormalized and uncentered)

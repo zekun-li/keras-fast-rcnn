@@ -6,8 +6,8 @@ Created on Tue Dec  6 15:45:35 2016
 """
 
 import os
-gpu_id = '6'
-#gpu_id = os.environ["SGE_GPU"]
+#gpu_id = '1'
+gpu_id = os.environ["SGE_GPU"]
 print gpu_id
 os.environ["CUDA_LAUNCH_BLOCKING"]='1'
 os.environ["THEANO_FLAGS"] = "device=gpu%s,floatX=float32,profile=False" % gpu_id
@@ -30,7 +30,6 @@ from theano.tensor.signal import pool
 from keras import backend as K
 from keras.layers.pooling import MaxPooling2D
 from keras.models import Model,Sequential
-from keras.engine.topology import Layer
 from keras.layers.core import Dense, Dropout, Activation, Permute, Reshape
 from keras.layers import Convolution2D, MaxPooling2D, Dense, Dropout, Activation, Flatten, ZeroPadding2D, UpSampling2D
 from keras.optimizers import SGD,Adadelta
@@ -78,8 +77,8 @@ def _per_roi_pooling( coord, x ):
     target = max_pooling(roi_up, subtensor_h, subtensor_w)
     '''
     # method 2
-    target = slice_pooling(roi,target_h, target_w)
-    #target = float_max_pooling(roi,target_h, target_w)
+    #target = slice_pooling(roi,target_h, target_w)
+    target = float_max_pooling(roi,target_h, target_w)
     return K.flatten( target )
 
 def _per_sample_pooling( x, coords, nb_feat_rows = 7, nb_feat_cols = 7 ):
@@ -105,12 +104,13 @@ def roi_output_shape( input_shapes ):
 vgg_model_root = '/nfs/isicvlnas01/users/yue_wu/thirdparty/keras-model-zoo/models/VGG-19/'
 sys.path.insert( 0, vgg_model_root )
 import model as VGG
+vgg = VGG.VGG_19( weights_path = os.path.join( vgg_model_root, 'vgg19_weights.h5' ) )
+
 def create_vgg_featex_classifier() :
-    vgg = VGG.VGG_19( weights_path = os.path.join( vgg_model_root, 'vgg19_weights.h5' ) )
     #--------------------------------------------------------------------------
     # create featex 
     #--------------------------------------------------------------------------
-    featex = Sequential()
+    featex = Sequential(name = 'vgg_conv_layers')
     # block 1
     featex.add(ZeroPadding2D((1,1),input_shape=(3,None,None)))
     featex.add(Convolution2D(64, 3, 3, activation='relu'))
@@ -153,11 +153,12 @@ def create_vgg_featex_classifier() :
     featex.add(ZeroPadding2D((1,1)))
     featex.add(Convolution2D(512, 3, 3, activation='relu'))
     featex.add(MaxPooling2D((2,2), strides=(2,2)))
+    '''
     #--------------------------------------------------------------------------
     # create classifier
     #--------------------------------------------------------------------------
     classifier = Sequential()
-    classifier.add(Dense(4096, activation='relu', input_shape = ( 512*7*7, ) ) )
+    classifier.add(Dense(4096, activation='relu', input_shape = ( 512*target_h*target_w, ) ) )
     classifier.add(Dropout(0.5))
     classifier.add(Dense(4096, activation='relu'))
     classifier.add(Dropout(0.5))
@@ -166,40 +167,33 @@ def create_vgg_featex_classifier() :
     #--------------------------------------------------------------------------
     # Load initial weights
     #--------------------------------------------------------------------------
-    for fl, vl in zip( featex.layers, vgg.layers[:37] ) :
+    for fl, vl in zip( featex.layers, vgg.layers[:37] ) : # set weights for 0-36 (included) layers
         fl.set_weights( vl.get_weights() )
-    for cl, vl in zip( classifier.layers, vgg.layers[38:] ) :
-        try :
-            cl.set_weights( vl.get_weights() )
-        except Exception, e :
-            print "WARNING: cannot set weights for", cl, e, "skipped"
-    '''
-    return featex, classifier
+    
+    return featex
+
+def create_vgg_dense():
+    dense_model = Sequential(name = 'dense_layers')
+    dense_model.add(Dense(4096, input_shape = (512 * target_h * target_w, ), activation = 'relu', name = 'dense1'))
+    dense_model.add(Dropout(0.5))
+    dense_model.add(Dense(4096, activation = 'relu',name = 'dense2'))
+    dense_model.add(Dropout(0.5))
+
+    for dl, vl in zip( dense_model.layers, vgg.layers[38:-1]):
+        try:
+            dl.set_weights( vl. get_weights())
+        except Exception, e:
+            print "WARNING: can not set weights for", dl, e, "in bbox_regressor, skipped"
+
+    return dense_model 
+
+def classifier():
+    return Dense( nb_classes, activation='softmax', input_shape = (4096,)) 
+    
     
 def bbox_regressor( nb_classes = nb_classes ) :
-    '''this model expects an input of shape {nb_roi}x{512*7*7} and predicts a bbox of shape {nb_roi}x4
-    '''
-    bbox = Sequential()
-    bbox.add(Dense(1024, input_shape = (512 * target_h * target_w, ), activation = 'relu'))
-    bbox.add(Dropout(0.5))
-    bbox.add(Dense(256, activation = 'relu'))
-    bbox.add(Dropout(0.5))
-    bbox.add(Dense(4, activation = 'linear'))
-    return bbox
-    '''
-    bbox = Sequential()
-    # bbox.add(Dense( 1024, input_shape = (512 * target_h * target_w, ), activation = 'relu' ) )
-    Reshape(512,target_h, target_w)
-    bbox.add(Convolution2D(1024,target_h, target_w,border_mode = 'valid',activation = 'relu') )
-    bbox.add(Dropout(0.5))
-    #bbox.add(Dense( 256, activation='relu') )
-    bbox.add(Convolution2D(256, target_h, target_w, border_mode = 'valid',activation = 'relu'))
-    bbox.add(Dropout(0.5))
-    #bbox.add(Dense( nb_classes * 4, activation='linear') )
-    bbox.add(Convolution2D( 64, target_h, target_w, border_mode = 'valid', activation = 'linear'))
-    return bbox 
-    '''
-
+     return Dense(4*nb_classes, activation = 'linear', input_shape = (4096,))    
+    
 
 def our_categorical_crossentropy(softmax_proba_2d,true_dist_2d, eps = 1e-5):
     return tt.nnet.nnet.categorical_crossentropy(softmax_proba_2d + eps, true_dist_2d)
@@ -217,6 +211,7 @@ def smooth_l1(x):
     abs_x = tt.abs_(x)
     return ifelse(tt.lt(abs_x,1),0.5*abs_x*abs_x, abs_x-0.5)
 
+'''
 # predicted_box: 1D [xcenter,ycenter,width,height]
 # target_box: 1D [label, xcenter,ycenter,width,height]
 def one_bbox_loss(target_box,predicted_box):
@@ -226,6 +221,19 @@ def one_bbox_loss(target_box,predicted_box):
     h_offset = predicted_box[3] - target_box[4]
 
     return smooth_l1(x_offset) + smooth_l1(y_offset) + smooth_l1(w_offset) + smooth_l1(h_offset)
+'''
+# predicted_box : 1D (21*4) [ xcenter0, ycenter0, width0,height0...xcenter21, ycenter21, width21, height21]
+# target_box 1D (5) [label,xcenter, ycenter, width, height]
+def one_bbox_loss(target_box,predicted_box):
+    true_class = target_box[0]
+    start = tt.cast(true_class * 4, 'int32')
+    x_offset = predicted_box[0+start] - target_box[1]
+    y_offset = predicted_box[1+start] - target_box[2]
+    w_offset = predicted_box[2+start] - target_box[3]
+    h_offset = predicted_box[3+start] - target_box[4]
+
+    return smooth_l1(x_offset) + smooth_l1(y_offset) + smooth_l1(w_offset) + smooth_l1(h_offset)
+
 
 # predicted_box: 1D [xcenter,ycenter,width,height]
 # target_box: 1D [label, xcenter,ycenter,width,height]
@@ -260,6 +268,8 @@ We need to construct a (graph) model like below
 #                     |
 #             pooled_roi_tensor   
 #                     |
+#                dense_layers
+#                     |
 #        ------------------------------
 #          |                        |      
 # [ roi_cls_predictor ]   [ roi_bbox_predictor ]
@@ -290,18 +300,21 @@ from keras.layers.wrappers import TimeDistributed
 input_x = Input( shape = ( 3, None, None ), name = 'batch_of_images' )
 input_r = Input( shape = ( None, 4 ), name = 'batch_of_rois' )  
 # define four major modules
-featex, classifier = create_vgg_featex_classifier()
+featex = create_vgg_featex_classifier()
 vgg_conv_output = featex( input_x )
 
-pool_roi_output = merge( inputs = [ vgg_conv_output, input_r ], mode = roi_pooling, output_shape = roi_output_shape )
-bbox_pred = bbox_regressor()
+pool_roi_output = merge( inputs = [ vgg_conv_output, input_r ], mode = roi_pooling, output_shape = roi_output_shape , name = 'roi_pooling')
+dense_output = TimeDistributed(create_vgg_dense(), name = 'dense_output')( pool_roi_output)
+#class_pred  = classifier()
+#bbox_pred = bbox_regressor()
+
+
 # define two outputs
-proba_output = TimeDistributed( classifier, name = 'proba_output' )( pool_roi_output )
-bbox_output = TimeDistributed( bbox_pred, name = 'bbox_output' )( pool_roi_output )
+proba_output = TimeDistributed( classifier(), name = 'proba_output' )( dense_output )
+bbox_output = TimeDistributed( bbox_regressor(), name = 'bbox_output' )( dense_output )
 # define model
 fast = Model( input = [input_x, input_r], output = [ proba_output, bbox_output ] )
 fast.summary()
-
 
 # TODO: compile model
 # 1) you need to compile this model only ONCE
@@ -310,10 +323,9 @@ fast.summary()
 #from keras.metrics import mean_squared_error as our_proba_loss
 #from keras.metrics import mean_absolute_error as our_bbox_loss
 
-sgd = SGD(lr=0.0001, momentum=0.0, decay=0.0, nesterov=False)
+sgd = SGD(lr=0.0001, momentum=0.9, decay=0.0, nesterov=False)
 fast.compile( optimizer = sgd, loss_weights = [ 1., 1. ], 
-              loss = { 'proba_output' : our_proba_loss, 'bbox_output' : our_bbox_loss } )
-
+              loss = { 'proba_output' : our_proba_loss, 'bbox_output' : our_bbox_loss }, metrics = ['accuracy'] )
 
 def datagen( data_list, mode = 'training', nb_epoch = -1 ) :
     epoch = 0

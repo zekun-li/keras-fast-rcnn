@@ -24,7 +24,7 @@ cd /nfs/isicvlnas01/users/zekunl/projects/keras-fast-rcnn/fast-rcnn/
 
 # if gpu allocated successfully
 # remeber to modify lib/keras-model/fastrcnn.py for gpu allocation
-time python tools/train_net.py --gpu ${SGE_GPU} --imdb voc_2012_train -data ${TMPDIR}/VOC2012
+time python tools/train_net.py --imdb voc_2012_train --data ${TMPDIR}/VOC2012 --weights output/weights/samperepoch1000_maxpool_bgfilter_lr0.0001-train-00-0.76.hdf5 >> train_re.log
 
 # if gpu not allocated. avoid if possible
 # remeber to modify lib/keras_model/fastrcnn.py for gpu allocation
