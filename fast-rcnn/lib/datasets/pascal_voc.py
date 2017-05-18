@@ -39,12 +39,12 @@ class pascal_voc(datasets.imdb):
         self._image_ext = '.jpg'
         self._image_index = self._load_image_set_index()
         # Default to roidb handler
-        self._roidb_handler = self.selective_search_roidb
-        #self._roidb_handler = self.yolo_roidb # use YOLO proposals
+        #self._roidb_handler = self.selective_search_roidb
+        self._roidb_handler = self.yolo_roidb # use YOLO proposals
 
         # PASCAL specific config options
         self.config = {'cleanup'  : True,
-                       'use_salt' : True,
+                       'use_salt' : False,
                        'use_diff' : False,
                        'top_k'    : 2000}
 
@@ -329,16 +329,17 @@ class pascal_voc(datasets.imdb):
                 'seg_areas' : seg_areas}
 
 
-    def _write_voc_results_file(self, all_boxes):
+    def _write_voc_results_file(self, all_boxes, out_dir):
         use_salt = self.config['use_salt']
-        comp_id = 'comp4'
+        comp_id = 'comp3'
         if use_salt:
             comp_id += '-{}'.format(os.getpid())
 
         # VOCdevkit/results/VOC2007/Main/comp4-44503_det_test_aeroplane.txt
         #path = os.path.join(self._devkit_path, 'results', 'VOC' + self._year,
         #                    'Main', comp_id + '_')
-        path = os.path.join(self._devkit_path,'results',comp_id+'_') # sample result path
+        #path = os.path.join(self._devkit_path,'results',comp_id+'_') # sample result path
+        path = out_dir
         for cls_ind, cls in enumerate(self.classes):
             if cls == '__background__':
                 continue

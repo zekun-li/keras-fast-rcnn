@@ -7,7 +7,6 @@ Created on Tue Dec  6 15:45:35 2016
 
 import sys
 import os
-from fast_rcnn.config import cfg
 from keras.layers import Input, Dense, Merge, Lambda, merge
 from keras.models import Model, Sequential
 from keras import backend as K
@@ -68,10 +67,8 @@ def _per_roi_pooling( coord, x ):
     target = max_pooling(roi_up, subtensor_h, subtensor_w)
     '''
     # method 2
-    if cfg.NET.POOL_METHOD == 'slicepool':
-        target = slice_pooling(roi,target_h, target_w)
-    else:
-        target = float_max_pooling(roi,target_h, target_w)
+    #target = slice_pooling(roi,target_h, target_w)
+    target = float_max_pooling(roi,target_h, target_w)
     return K.flatten( target )
 
 def _per_sample_pooling( x, coords, nb_feat_rows = 7, nb_feat_cols = 7 ):
@@ -185,10 +182,8 @@ def classifier():
     
     
 def bbox_regressor( nb_classes = nb_classes ) :
-    if cfg.NET.BBOX_OUT_NUM == '84':
-        return Dense(4*nb_classes, activation = 'linear', input_shape = (4096,))    
-    else:
-        return Dense(4, activation = 'linear', input_shape = (4096,)) 
+     return Dense(4*nb_classes, activation = 'linear', input_shape = (4096,))    
+    
 
 def our_categorical_crossentropy(softmax_proba_2d,true_dist_2d, eps = 1e-5):
     return tt.nnet.nnet.categorical_crossentropy(softmax_proba_2d + eps, true_dist_2d)
@@ -220,12 +215,8 @@ def one_bbox_loss(target_box,predicted_box):
 # predicted_box : 1D (21*4) [ xcenter0, ycenter0, width0,height0...xcenter21, ycenter21, width21, height21]
 # target_box 1D (5) [label,xcenter, ycenter, width, height]
 def one_bbox_loss(target_box,predicted_box):
-    if cfg.NET.BBOX_OUT_NUM == '4':
-        start = 0
-    else:
-        true_class = target_box[0]
-        start = tt.cast(true_class * 4, 'int32')
-    
+    true_class = target_box[0]
+    start = tt.cast(true_class * 4, 'int32')
     x_offset = predicted_box[0+start] - target_box[1]
     y_offset = predicted_box[1+start] - target_box[2]
     w_offset = predicted_box[2+start] - target_box[3]
@@ -301,20 +292,15 @@ input_r = Input( shape = ( None, 4 ), name = 'batch_of_rois' )
 # define four major modules
 featex = create_vgg_featex_classifier()
 vgg_conv_output = featex( input_x )
+
 pool_roi_output = merge( inputs = [ vgg_conv_output, input_r ], mode = roi_pooling, output_shape = roi_output_shape , name = 'roi_pooling')
+dense_output_feedto_proba = TimeDistributed(create_vgg_dense(), name = 'dense_feedto_proba')( pool_roi_output)
+dense_output_feedto_bbox = TimeDistributed(create_vgg_dense(), name = 'dense_feedto_bbox')( pool_roi_output)
 
-if cfg.NET.IF_MERGEDENSE == '1': # one common dense layer
-    dense_output = TimeDistributed(create_vgg_dense(), name = 'dense_output')( pool_roi_output)
-    # define two outputs
-    proba_output = TimeDistributed( classifier(), name = 'proba_output' )( dense_output )
-    bbox_output = TimeDistributed( bbox_regressor(), name = 'bbox_output' )( dense_output )
-else: # separate dense layers for two branches
-    dense_output_feedto_proba = TimeDistributed(create_vgg_dense(), name = 'dense_feedto_proba')( pool_roi_output)
-    dense_output_feedto_bbox = TimeDistributed(create_vgg_dense(), name = 'dense_feedto_bbox')( pool_roi_output)
-    # define two outputs
-    proba_output = TimeDistributed( classifier(), name = 'proba_output' )( dense_output_feedto_proba)
-    bbox_output = TimeDistributed( bbox_regressor(), name = 'bbox_output' )( dense_output_feedto_bbox )
 
+# define two outputs
+proba_output = TimeDistributed( classifier(), name = 'proba_output' )( dense_output_feedto_proba)
+bbox_output = TimeDistributed( bbox_regressor(), name = 'bbox_output' )( dense_output_feedto_bbox )
 # define model
 fast = Model( input = [input_x, input_r], output = [ proba_output, bbox_output ] )
 fast.summary()

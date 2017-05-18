@@ -28,6 +28,20 @@ __C = edict()
 cfg = __C
 
 #
+# Default network settings
+# 
+__C.NET = edict()
+
+# if merge dense layers of two branches 
+__C.NET.IF_MERGEDENSE = '1'
+# number of outputs of bbox regression branch
+__C.NET.BBOX_OUT_NUM = '84'
+# pooling method in roi_pooling layer
+__C.NET.POOL_METHOD = 'maxpool'
+
+
+
+#
 # Training options
 #
 
@@ -129,7 +143,7 @@ __C.ROOT_DIR = osp.abspath(osp.join(osp.dirname(__file__), '..', '..'))
 
 # Place outputs under an experiments directory
 __C.EXP_DIR = 'default'
-
+'''
 def get_output_dir(imdb, net):
     """Return the directory where experimental artifacts are placed.
 
@@ -142,7 +156,7 @@ def get_output_dir(imdb, net):
         return path
     else:
         return osp.join(path, net.name)
-
+'''
 def _merge_a_into_b(a, b):
     """Merge config dictionary a into config dictionary b, clobbering the
     options in b whenever they are also specified in a.

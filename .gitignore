@@ -7,6 +7,9 @@ backup_code/
 *.pkl
 *.hdf5
 *.roidb
+*.jpg
+*.log
+fast-rcnn/vis/
 fast-rcnn/run/
 fast-rcnn/output/weights/
 another-fast-rcnn/

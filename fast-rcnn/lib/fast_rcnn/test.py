@@ -7,7 +7,7 @@
 
 """Test a Fast R-CNN network on an imdb (image database)."""
 
-from fast_rcnn.config import cfg, get_output_dir
+from fast_rcnn.config import cfg
 import argparse
 from utils.timer import Timer
 import numpy as np

@@ -10,22 +10,31 @@
 """Test a Fast R-CNN network on an image database."""
 
 import _init_paths
-from fast_rcnn.test import test_net
+#from fast_rcnn.test import test_net
 from fast_rcnn.config import cfg, cfg_from_file, cfg_from_list
 from datasets.factory import get_imdb
 import datasets
 import argparse
 import pprint
 import time, os, sys
+import re
+
+#gpu_id = '1'
+gpu_id = os.environ["SGE_GPU"]
+print gpu_id
+os.environ["CUDA_LAUNCH_BLOCKING"]='1'
+os.environ["THEANO_FLAGS"] = "device=gpu%s,floatX=float32,profile=False" % gpu_id
+print os.environ["THEANO_FLAGS"]
+sys.path.insert(0, '/nfs/isicvlnas01/users/yue_wu/thirdparty/keras_1.1.2/keras/' )
+import keras
+print keras.__version__
 
 # ------------
-from keras_model import fastrcnn
+#from keras_model import fastrcnn
 from keras_model import prepare_data
 from keras.utils.np_utils import to_categorical
 import numpy as np
 import cPickle as pickle
-import os
-import time
 import roi_data_layer.roidb as rdl_roidb
 from utils.cython_nms import nms
 
@@ -114,7 +123,7 @@ def get_training_roidb(imdb):
     print 'done'
 
     return imdb.roidb
-
+'''
 def filter_out_gt_proposals(roidb):
     for ind in xrange(len(roidb)):
         img_rois = roidb[ind]
@@ -124,7 +133,7 @@ def filter_out_gt_proposals(roidb):
         roidb[ind]['bbox_targets'] = img_rois['bbox_targets'][use_indices]
 
     return roidb
-
+'''
 def datagen( data_list, mode = 'training', nb_epoch = -1 ) :
     epoch = 0
     nb_samples = len( data_list )
@@ -173,8 +182,8 @@ def parse_args():
     Parse input arguments
     """
     parser = argparse.ArgumentParser(description='Test a Fast R-CNN network')
-    parser.add_argument('--gpu', dest='gpu_id', help='GPU id to use',
-                        default=0, type=int)
+    #parser.add_argument('--gpu', dest='gpu_id', help='GPU id to use',
+    #                    default=0, type=int)
     parser.add_argument('--cfg', dest='cfg_file',
                         help='optional config file', default=None, type=str)
     parser.add_argument('--imdb', dest='imdb_name',
@@ -185,8 +194,19 @@ def parse_args():
     parser.add_argument('--set', dest='set_cfgs',
                         help='set config keys', default=None,
                         nargs=argparse.REMAINDER)
-    parser.add_argument('--data',dest='data_dir',help = 'data directory',default=None,type=str)
-    parser.add_argument('--weight', dest = 'weight_file', help = 'hdf5 weight file', default = None, type = str)
+    parser.add_argument('--data',dest='data_dir',
+                        help = 'data directory',
+                        default=None,type=str)
+    parser.add_argument('--weight', dest = 'weight_file',
+                        help = 'hdf5 weight file', 
+                        default = None, type = str)
+    parser.add_argument('--txtsdir',dest='txts_dir',
+                        help = 'directory path to save result txt files',
+                        default = 'output/results/txtsdir/', type=str)
+    parser.add_argument('--detsdir',dest='dets_dir',
+                        help = 'directory path to save cached all_boxes files',
+                        default = 'output/results/detsdir/', type=str)
+
 
     if len(sys.argv) == 1:
         parser.print_help()
@@ -209,11 +229,37 @@ if __name__ == '__main__':
     if args.data_dir is not None:
         datasets.DATA_DIR = args.data_dir
 
+    assert os.path.isdir(args.txts_dir) # txt output directory should alreay exist
+    assert os.path.isdir(args.dets_dir) # cached all_boxes directory should alreay exist
+    assert os.path.exists(args.weight_file) 
+
+    # infer the network structure based on the name of weight file
+    if_mergedense = re.search('mergedense.',args.weight_file).group(0)[-1]
+    pool_method = re.search('[a-z]*pool',args.weight_file).group(0)
+    out_num = re.search('numbboxout[0-9]*',args.weight_file).group(0)[10:]
+    cfg.NET.IF_MERGEDENSE = if_mergedense
+    cfg.NET.BBOX_OUT_NUM = out_num
+    cfg.NET.POOL_METHOD = pool_method
+    # load network after setting up cfg.NET
+    from keras_model import fastrcnn
+    # load weights saved from trained model
+    fastrcnn.fast.load_weights(args.weight_file)
+
+
     print('Using config:')
     pprint.pprint(cfg)
 
     imdb = get_imdb(args.imdb_name)
     imdb.competition_mode(args.comp_mode)
+
+    if re.search('_yolo_',args.weight_file):
+        imdb.roidb_handler = imdb.yolo_roidb
+    elif re.search('_ss_',args.weight_file):
+        imdb.roidb_handler = imdb.selective_search_roidb
+    else:
+        print "ERROR: PROPOSAL METHOD IS NOT 'yolo' OR 'ss'"
+        sys.exit(-1)
+
     print 'Loaded dataset `{:s}` for training'.format(imdb.name)
     roidb = get_training_roidb(imdb)
 
@@ -224,11 +270,7 @@ if __name__ == '__main__':
     print "roidb has {} images".format(len(roidb))
     print 'done'
 
-
-    assert os.path.exists(args.weight_file) 
-    # load weights saved from trained model
-    fastrcnn.fast.load_weights(args.weight_file)
-
+    '''
     # ---------------------un-norm bbox weights ----------------
     norm_w = fastrcnn.fast.get_layer('bbox_output').get_weights()[0]
     norm_b = fastrcnn.fast.get_layer('bbox_output').get_weights()[1]
@@ -237,7 +279,7 @@ if __name__ == '__main__':
         params = pickle.load(f)
 
     fastrcnn.fast.get_layer('bbox_output').set_weights((norm_w * (params['bbox_stds'][np.newaxis,:]), norm_b* params['bbox_stds']+ params['bbox_means']))
-
+    '''
     # ---------------------------------------------------------------
     
     #print 'Computing bounding-box regression targets...'
@@ -278,15 +320,14 @@ if __name__ == '__main__':
                 new_line = np.expand_dims( np.append(conf,box), axis =0)
                 all_boxes[label][i] = np.append( all_boxes[label][i], new_line, axis =0)
     
-    '''
-    # --------save all_boxes ---------------
-    pid = os.getpid()
-    filename = str(pid)+'_all_boxes.pkl'
+    
+    # --------save all_boxes before nms---------------
+    filename = args.dets_dir+'all_boxes_'+re.search('[^/]*?\.hdf5',args.weight_file).group(0)[:-5]+'.pkl'
     with open(filename,'w') as f:
         pickle.dump(all_boxes, f)
-    '''
+    
     print 'applying nms...'
     # apply nms
     nms_dets = apply_nms(all_boxes, 0.3)    
-    imdb._write_voc_results_file(nms_dets)
+    imdb._write_voc_results_file(nms_dets,args.txts_dir)
     print 'prediction done'
