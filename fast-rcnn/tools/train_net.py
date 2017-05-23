@@ -200,9 +200,8 @@ if __name__ == '__main__':
     roidb = get_training_roidb(imdb)
 
     print 'Computing bounding-box regression targets...'
-    # bbox_means, bbox_stds haven't been used so far
     bbox_means, bbox_stds = rdl_roidb.add_bbox_regression_targets(roidb)
-    if args.targetnorm == '1': # use target normlaiztion
+    if args.targetnorm == '1': # use target normalization
         num_images = len(roidb)
         num_classes = roidb[0]['gt_overlaps'].shape[1]
         for im_i in xrange(num_images):

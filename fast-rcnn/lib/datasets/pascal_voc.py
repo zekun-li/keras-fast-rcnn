@@ -163,7 +163,6 @@ class pascal_voc(datasets.imdb):
         
         cache_file = os.path.join(self.cache_path,
                                   self.name + '_yolo_roidb.pkl')
-
         if os.path.exists(cache_file):
             with open(cache_file, 'rb') as fid:
                 roidb = cPickle.load(fid)
@@ -344,7 +343,7 @@ class pascal_voc(datasets.imdb):
             if cls == '__background__':
                 continue
             print 'Writing {} VOC results file'.format(cls)
-            filename = path + 'det_' + self._image_set + '_' + cls + '.txt'
+            filename = path +comp_id + '_det_' + self._image_set + '_' + cls + '.txt'
             with open(filename, 'wt') as f:
                 for im_ind, index in enumerate(self.image_index):
                     dets = all_boxes[cls_ind][im_ind]
@@ -365,7 +364,7 @@ class pascal_voc(datasets.imdb):
         if use_salt:
             comp_id += '-{}'.format(os.getpid())
         '''
-        filename = 'comp4'+ '_det_' + self._image_set + '_{:s}.txt'
+        filename = 'comp3'+ '_det_' + self._image_set + '_{:s}.txt'
         path = os.path.join(
             self._devkit_path,
             'results',

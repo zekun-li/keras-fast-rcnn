@@ -309,10 +309,12 @@ if __name__ == '__main__':
             # skip ground truth bboxes.
             if roidb[i]['gt_classes'][roi_ind] != 0:
                 continue
-
             label = pred_labels[roi_ind]
             conf = pred_conf[roi_ind]
-            box = pred_boxes[roi_ind][label*4:label*4+4]
+            if cfg.NET.BBOX_OUT_NUM == '4':
+                box = pred_boxes[roi_ind]
+            else:
+                box = pred_boxes[roi_ind][label*4:label*4+4]
             box = box.astype(np.float32)
             if all_boxes[label][i] == []:
                 all_boxes[label][i] = np.expand_dims(np.append(conf, box),axis =0)

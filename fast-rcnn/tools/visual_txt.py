@@ -43,7 +43,7 @@ if __name__ == '__main__':
 
     for i in xrange(20):
         class_label = classes[i]
-        txt_file = txts_folder+'/comp4_det_val_'+class_label+'.txt'
+        txt_file = txts_folder+'/comp3_det_test_'+class_label+'.txt'
         with open(txt_file) as f:
             for line in f:
                 (img_name, conf, xmin, ymin, xmax, ymax) = line.split()
@@ -56,4 +56,5 @@ if __name__ == '__main__':
             (class_index, conf,xmin,ymin,xmax,ymax) = bbox
             cv2.rectangle(img, (xmin,ymin),(xmax,ymax), colors[class_index], thickness = 2)
             cv2.putText(img,classes[class_index] + str(conf),(xmin+2,ymin+15),0,0.5,colors[class_index], 2)
-        cv2.imwrite('vis/'+year+'_nms_'+name+'.jpg',img)
+        pid = os.getpid()
+        cv2.imwrite('vis/'+year+'_'+str(pid)+'_nms_'+name+'.jpg',img)
