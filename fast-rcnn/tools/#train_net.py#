@@ -11,7 +11,7 @@
 """Train a Fast R-CNN network on a region of interest database."""
 
 import _init_paths
-from fast_rcnn.config import cfg, cfg_from_file, cfg_from_list, get_output_dir
+from fast_rcnn.config import cfg, cfg_from_file, cfg_from_list
 from datasets.factory import get_imdb
 import datasets
 import argparse
@@ -200,17 +200,20 @@ if __name__ == '__main__':
     roidb = get_training_roidb(imdb)
 
     print 'Computing bounding-box regression targets...'
-    # bbox_means, bbox_stds haven't been used so far
     bbox_means, bbox_stds = rdl_roidb.add_bbox_regression_targets(roidb)
-    if args.targetnorm == '1': # use target normlaiztion
-        num_images = len(roidb)
-        num_classes = roidb[0]['gt_overlaps'].shape[1]
-        for im_i in xrange(num_images):
-            targets = roidb[im_i]['bbox_targets']
-            for cls in xrange(1, num_classes):
-                cls_inds = np.where(targets[:, 0] == cls)[0]
-                roidb[im_i]['bbox_targets'][cls_inds, 1:] -= bbox_means[cls, :]
-                roidb[im_i]['bbox_targets'][cls_inds, 1:] /= bbox_stds[cls, :]
+    if args.targetnorm == '1': # use target normalization
+        if args.num_bbox_out = '4':
+            num_images = len(roidb)
+            for im_i in xrange(num_images):
+        else:
+            num_images = len(roidb)
+            num_classes = roidb[0]['gt_overlaps'].shape[1]
+            for im_i in xrange(num_images):
+                targets = roidb[im_i]['bbox_targets']
+                for cls in xrange(1, num_classes):
+                    cls_inds = np.where(targets[:, 0] == cls)[0]
+                    roidb[im_i]['bbox_targets'][cls_inds, 1:] -= bbox_means[cls, :]
+                    roidb[im_i]['bbox_targets'][cls_inds, 1:] /= bbox_stds[cls, :]
         
         print 'Using target normalizaton'
     else:
